@@ -5,63 +5,68 @@ import { JobApplication, Post, ScrapedData, ActivityLog, DailyUsage } from "@/li
 import { checkApiRateLimit } from "@/lib/utils/rate-limit";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  const rateLimit = await checkApiRateLimit(session.user.id);
-  if (!rateLimit.success) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-  }
+    const rateLimit = await checkApiRateLimit(session.user.id);
+    if (!rateLimit.success) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
 
-  await connectDB();
-  const userId = session.user.id;
+    await connectDB();
+    const userId = session.user.id;
 
-  const now = new Date();
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const today = now.toISOString().split("T")[0];
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const today = now.toISOString().split("T")[0];
 
-  const [
-    totalApplied,
-    appliedThisWeek,
-    appliedCount,
-    interviewCount,
-    postsThisWeek,
-    totalLeads,
-    recentActivity,
-    todayUsage,
-  ] = await Promise.all([
-    JobApplication.countDocuments({ userId }),
-    JobApplication.countDocuments({ userId, createdAt: { $gte: weekAgo } }),
-    JobApplication.countDocuments({ userId, status: "applied" }),
-    JobApplication.countDocuments({ userId, status: "interview" }),
-    Post.countDocuments({ userId, createdAt: { $gte: weekAgo } }),
-    ScrapedData.countDocuments({ userId }),
-    ActivityLog.find({ userId })
-      .sort({ timestamp: -1 })
-      .limit(10)
-      .lean(),
-    DailyUsage.findOne({ userId, date: today }).lean(),
-  ]);
-
-  const successRate = totalApplied > 0
-    ? Math.round(((appliedCount + interviewCount) / totalApplied) * 100)
-    : 0;
-
-  return NextResponse.json({
-    stats: {
+    const [
       totalApplied,
       appliedThisWeek,
-      successRate,
+      appliedCount,
+      interviewCount,
       postsThisWeek,
       totalLeads,
-    },
-    recentActivity,
-    todayUsage: todayUsage?.actions || { applies: 0, posts: 0, scrapes: 0, profileViews: 0, messages: 0 },
-  }, {
-    headers: {
-      "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
-    },
-  });
+      recentActivity,
+      todayUsage,
+    ] = await Promise.all([
+      JobApplication.countDocuments({ userId }),
+      JobApplication.countDocuments({ userId, createdAt: { $gte: weekAgo } }),
+      JobApplication.countDocuments({ userId, status: "applied" }),
+      JobApplication.countDocuments({ userId, status: "interview" }),
+      Post.countDocuments({ userId, createdAt: { $gte: weekAgo } }),
+      ScrapedData.countDocuments({ userId }),
+      ActivityLog.find({ userId })
+        .sort({ timestamp: -1 })
+        .limit(10)
+        .lean(),
+      DailyUsage.findOne({ userId, date: today }).lean(),
+    ]);
+
+    const successRate = totalApplied > 0
+      ? Math.round(((appliedCount + interviewCount) / totalApplied) * 100)
+      : 0;
+
+    return NextResponse.json({
+      stats: {
+        totalApplied,
+        appliedThisWeek,
+        successRate,
+        postsThisWeek,
+        totalLeads,
+      },
+      recentActivity,
+      todayUsage: todayUsage?.actions || { applies: 0, posts: 0, scrapes: 0, profileViews: 0, messages: 0 },
+    }, {
+      headers: {
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+      },
+    });
+  } catch (error) {
+    console.error("[Dashboard] Error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

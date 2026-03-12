@@ -168,6 +168,7 @@ export function Sidebar() {
             size="sm"
             onClick={toggle}
             className="w-full justify-center"
+            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {isCollapsed ? (
               <ChevronRight className="h-4 w-4" />
@@ -215,6 +216,7 @@ export function Sidebar() {
                 size="icon"
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="shrink-0"
+                aria-label="Sign out"
               >
                 <LogOut className="h-4 w-4 text-white/40" />
               </Button>

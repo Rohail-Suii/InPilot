@@ -1,27 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock } from "lucide-react";
-
-interface ActivityItem {
-  _id: string;
-  action: string;
-  module: string;
-  status: string;
-  timestamp: string;
-}
+import { useDashboardData } from "./dashboard-data-provider";
 
 export function RecentActivity() {
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
-
-  useEffect(() => {
-    fetch("/api/dashboard")
-      .then((res) => res.json())
-      .then((data) => setActivities(data.recentActivity || []))
-      .catch(() => {});
-  }, []);
+  const { recentActivity: activities } = useDashboardData();
 
   return (
     <Card>

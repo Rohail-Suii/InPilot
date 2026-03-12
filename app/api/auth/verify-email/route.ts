@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "Verification failed. Please try again." }, { status: 400 });
     }
 
     if (user.emailVerified) {

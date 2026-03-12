@@ -43,6 +43,10 @@ export function sanitizeForAI(text: string): string {
     .slice(0, 50000);
 }
 
+export function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

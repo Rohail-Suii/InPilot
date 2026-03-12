@@ -1,41 +1,54 @@
-import { RateLimiterMemory } from "rate-limiter-flexible";
+import connectDB from "@/lib/db/connection";
+import mongoose from "mongoose";
 
-// Rate limiter for auth endpoints: 5 attempts per minute per IP
-const authLimiter = new RateLimiterMemory({
-  keyPrefix: "auth",
-  points: 5,
-  duration: 60, // per 60 seconds
+const RateLimitSchema = new mongoose.Schema({
+  key: { type: String, required: true, index: true },
+  points: { type: Number, default: 0 },
+  expiresAt: { type: Date, required: true, index: { expireAfterSeconds: 0 } },
 });
 
-// Rate limiter for general API endpoints: 100 requests per minute per user
-const apiLimiter = new RateLimiterMemory({
-  keyPrefix: "api",
-  points: 100,
-  duration: 60,
-});
+const RateLimitModel =
+  mongoose.models.RateLimit || mongoose.model("RateLimit", RateLimitSchema);
+
+async function consumePoint(
+  keyPrefix: string,
+  key: string,
+  maxPoints: number,
+  durationSec: number
+): Promise<{ success: boolean; retryAfter?: number }> {
+  await connectDB();
+  const fullKey = `${keyPrefix}:${key}`;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + durationSec * 1000);
+
+  const doc = await RateLimitModel.findOneAndUpdate(
+    { key: fullKey, expiresAt: { $gt: now } },
+    { $inc: { points: 1 } },
+    { new: true }
+  );
+
+  if (!doc) {
+    // No active window — create one
+    await RateLimitModel.findOneAndUpdate(
+      { key: fullKey },
+      { $set: { points: 1, expiresAt } },
+      { upsert: true, new: true }
+    );
+    return { success: true };
+  }
+
+  if (doc.points > maxPoints) {
+    const retryAfter = Math.ceil((doc.expiresAt.getTime() - now.getTime()) / 1000);
+    return { success: false, retryAfter };
+  }
+
+  return { success: true };
+}
 
 export async function checkAuthRateLimit(ip: string): Promise<{ success: boolean; retryAfter?: number }> {
-  try {
-    await authLimiter.consume(ip);
-    return { success: true };
-  } catch (rateLimiterRes) {
-    const res = rateLimiterRes as { msBeforeNext: number };
-    return {
-      success: false,
-      retryAfter: Math.ceil(res.msBeforeNext / 1000),
-    };
-  }
+  return consumePoint("auth", ip, 5, 60);
 }
 
 export async function checkApiRateLimit(userId: string): Promise<{ success: boolean; retryAfter?: number }> {
-  try {
-    await apiLimiter.consume(userId);
-    return { success: true };
-  } catch (rateLimiterRes) {
-    const res = rateLimiterRes as { msBeforeNext: number };
-    return {
-      success: false,
-      retryAfter: Math.ceil(res.msBeforeNext / 1000),
-    };
-  }
+  return consumePoint("api", userId, 100, 60);
 }

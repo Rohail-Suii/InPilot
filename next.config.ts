@@ -7,6 +7,8 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["mongoose", "bcryptjs"],
+  output: "standalone",
+  poweredByHeader: false,
   async headers() {
     return [
       {

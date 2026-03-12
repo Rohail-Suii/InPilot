@@ -1,11 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Menu, Bell, Plug, PlugZap } from "lucide-react";
+import { Menu, Plug, PlugZap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/lib/hooks/use-stores";
 import { useExtensionStore } from "@/lib/hooks/use-stores";
 import { Button } from "@/components/ui/button";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 
 const routeTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -35,6 +36,7 @@ export function Topbar() {
           size="icon"
           className="lg:hidden"
           onClick={() => setMobileOpen(true)}
+          aria-label="Open menu"
         >
           <Menu className="h-5 w-5" />
         </Button>
@@ -63,9 +65,7 @@ export function Topbar() {
         </div>
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5 text-white/50" />
-        </Button>
+        <NotificationCenter />
       </div>
     </header>
   );

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AnalyticsClient } from "@/components/analytics/analytics-client";
+import { AnalyticsLoader } from "./analytics-loader";
 
 export const metadata: Metadata = {
   title: "Analytics",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function AnalyticsPage() {
-  return <AnalyticsClient />;
+  return <AnalyticsLoader />;
 }

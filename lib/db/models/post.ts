@@ -57,7 +57,7 @@ const PostSchema = new Schema<IPost>(
 );
 
 PostSchema.index({ userId: 1, status: 1 });
-PostSchema.index({ scheduledFor: 1 });
+PostSchema.index({ userId: 1, scheduledFor: 1 });
 
 const Post: Model<IPost> =
   mongoose.models.Post || mongoose.model<IPost>("Post", PostSchema);

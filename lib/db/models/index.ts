@@ -28,6 +28,12 @@ export type { IActivityLog } from "./activity-log";
 export { default as DailyUsage } from "./daily-usage";
 export type { IDailyUsage } from "./daily-usage";
 
+export { default as Notification } from "./notification";
+export type { INotification } from "./notification";
+
 export { default as VerificationToken } from "./verification-token";
 export type { IVerificationToken } from "./verification-token";
 export { generateOTP, generateResetToken } from "./verification-token";
+
+export { default as OutreachTemplate } from "./outreach-template";
+export type { IOutreachTemplate } from "./outreach-template";

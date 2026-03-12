@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import {
   Send,
   TrendingUp,
@@ -9,24 +8,10 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-interface DashboardStats {
-  totalApplied: number;
-  appliedThisWeek: number;
-  successRate: number;
-  postsThisWeek: number;
-  totalLeads: number;
-}
+import { useDashboardData } from "./dashboard-data-provider";
 
 export function StatsCards() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-
-  useEffect(() => {
-    fetch("/api/dashboard")
-      .then((res) => res.json())
-      .then((data) => setStats(data.stats))
-      .catch(() => {});
-  }, []);
+  const { stats } = useDashboardData();
 
   const cards = [
     {

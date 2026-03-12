@@ -107,3 +107,79 @@ export async function isApproachingLimits(
 
   return { approaching: warnings.length > 0, warnings };
 }
+
+// In-memory cooldown tracker for inter-action timing
+const lastActionTimes = new Map<string, number>();
+
+/**
+ * Enforce minimum time between consecutive actions for a user.
+ * Returns remaining wait time in ms, or 0 if action is allowed.
+ */
+export function checkCooldown(
+  userId: string,
+  actionType: ActionType,
+  speed: SpeedPreset = "balanced"
+): { allowed: boolean; waitMs: number } {
+  const key = `${userId}:${actionType}`;
+  const now = Date.now();
+  const last = lastActionTimes.get(key) || 0;
+
+  // Minimum seconds between actions based on speed
+  const minGapSeconds: Record<SpeedPreset, number> = {
+    conservative: 60,
+    balanced: 30,
+    aggressive: 15,
+  };
+
+  const minGapMs = minGapSeconds[speed] * 1000;
+  const elapsed = now - last;
+
+  if (elapsed < minGapMs) {
+    return { allowed: false, waitMs: minGapMs - elapsed };
+  }
+
+  lastActionTimes.set(key, now);
+
+  // Clean up old entries periodically (every 100 checks)
+  if (lastActionTimes.size > 1000) {
+    const cutoff = now - 3600000; // 1 hour
+    for (const [k, v] of lastActionTimes) {
+      if (v < cutoff) lastActionTimes.delete(k);
+    }
+  }
+
+  return { allowed: true, waitMs: 0 };
+}
+
+const lastActionTimestamps = new Map<string, number>();
+
+/**
+ * Enforce minimum cooldown between consecutive actions to prevent rapid-fire API abuse.
+ * Returns { allowed, waitMs } - if not allowed, waitMs indicates time to wait.
+ */
+export function checkActionCooldown(
+  userId: string,
+  actionType: string,
+  minCooldownMs: number = 3000
+): { allowed: boolean; waitMs: number } {
+  const key = `${userId}:${actionType}`;
+  const now = Date.now();
+  const lastAction = lastActionTimestamps.get(key) || 0;
+  const elapsed = now - lastAction;
+
+  if (elapsed < minCooldownMs) {
+    return { allowed: false, waitMs: minCooldownMs - elapsed };
+  }
+
+  lastActionTimestamps.set(key, now);
+
+  // Cleanup old entries every 1000 insertions
+  if (lastActionTimestamps.size > 10000) {
+    const cutoff = now - 60000;
+    for (const [k, v] of lastActionTimestamps) {
+      if (v < cutoff) lastActionTimestamps.delete(k);
+    }
+  }
+
+  return { allowed: true, waitMs: 0 };
+}

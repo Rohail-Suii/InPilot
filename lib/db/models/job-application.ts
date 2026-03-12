@@ -83,6 +83,7 @@ const JobApplicationSchema = new Schema<IJobApplication>(
 JobApplicationSchema.index({ userId: 1, status: 1 });
 JobApplicationSchema.index({ appliedAt: -1 });
 JobApplicationSchema.index({ company: 1 });
+JobApplicationSchema.index({ userId: 1, jobUrl: 1 }, { unique: true });
 
 const JobApplication: Model<IJobApplication> =
   mongoose.models.JobApplication ||

@@ -50,7 +50,7 @@ const ScrapedDataSchema = new Schema<IScrapedData>(
 
 ScrapedDataSchema.index({ userId: 1, type: 1 });
 ScrapedDataSchema.index({ "source.scrapedAt": -1 });
-ScrapedDataSchema.index({ tags: 1 });
+ScrapedDataSchema.index({ userId: 1, tags: 1 });
 
 const ScrapedData: Model<IScrapedData> =
   mongoose.models.ScrapedData ||

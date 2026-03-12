@@ -29,3 +29,57 @@ export const useExtensionStore = create<ExtensionStore>((set) => ({
   setConnected: (connected) => set({ isConnected: connected }),
   setCurrentTask: (task) => set({ currentTask: task }),
 }));
+
+interface NotificationItem {
+  _id: string;
+  type: string;
+  title: string;
+  message: string;
+  module?: string;
+  read: boolean;
+  actionUrl?: string;
+  createdAt: string;
+}
+
+interface NotificationStore {
+  notifications: NotificationItem[];
+  unreadCount: number;
+  isOpen: boolean;
+  setNotifications: (notifications: NotificationItem[]) => void;
+  setUnreadCount: (count: number) => void;
+  setOpen: (open: boolean) => void;
+  markAsRead: (id: string) => void;
+  markAllAsRead: () => void;
+  addNotification: (notification: NotificationItem) => void;
+  removeNotification: (id: string) => void;
+}
+
+export const useNotificationStore = create<NotificationStore>((set) => ({
+  notifications: [],
+  unreadCount: 0,
+  isOpen: false,
+  setNotifications: (notifications) => set({ notifications }),
+  setUnreadCount: (count) => set({ unreadCount: count }),
+  setOpen: (open) => set({ isOpen: open }),
+  markAsRead: (id) =>
+    set((state) => ({
+      notifications: state.notifications.map((n) =>
+        n._id === id ? { ...n, read: true } : n
+      ),
+      unreadCount: Math.max(0, state.unreadCount - 1),
+    })),
+  markAllAsRead: () =>
+    set((state) => ({
+      notifications: state.notifications.map((n) => ({ ...n, read: true })),
+      unreadCount: 0,
+    })),
+  addNotification: (notification) =>
+    set((state) => ({
+      notifications: [notification, ...state.notifications],
+      unreadCount: state.unreadCount + (notification.read ? 0 : 1),
+    })),
+  removeNotification: (id) =>
+    set((state) => ({
+      notifications: state.notifications.filter((n) => n._id !== id),
+    })),
+}));

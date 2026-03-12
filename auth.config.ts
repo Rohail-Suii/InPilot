@@ -34,7 +34,8 @@ export const authConfig = {
   ],
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+    updateAge: 24 * 60 * 60, // Force session update every 24 hours
   },
   pages: {
     signIn: "/login",
@@ -60,10 +61,17 @@ export const authConfig = {
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
+        token.iat = Math.floor(Date.now() / 1000);
       }
       if (trigger === "update" && session) {
         token.name = session.name;
         token.image = session.image;
+      }
+      // Rotate token every 24 hours
+      const iat = (token.iat as number) || 0;
+      const now = Math.floor(Date.now() / 1000);
+      if (now - iat > 24 * 60 * 60) {
+        token.iat = now;
       }
       return token;
     },
