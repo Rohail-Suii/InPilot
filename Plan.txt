@@ -1,0 +1,1254 @@
+# LinkedIn Automation SaaS — Complete Modular Plan
+
+## Project: LinkedBoost (Working Title)
+**Stack**: Next.js 16 (App Router) + React 19 + Tailwind CSS v4 + MongoDB Atlas + NextAuth.js + Chrome Extension (Manifest V3)
+**Deployment**: Self-hosted VPS (Docker)
+**Monetization**: Completely free forever (BYOK — users bring their own AI API keys)
+**Goal**: Best-in-class LinkedIn automation tool that goes viral
+
+---
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   NEXT.JS 16 WEB APP                     │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐ │
+│  │Dashboard │ │Job Apply │ │Hero Mode │ │Data Scraper│ │
+│  │  (SSR)   │ │  (SSR)   │ │  (SSR)   │ │   (SSR)    │ │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └─────┬──────┘ │
+│       │             │            │              │        │
+│  ┌────▼─────────────▼────────────▼──────────────▼──────┐│
+│  │              API Routes (Route Handlers)             ││
+│  │   /api/auth  /api/jobs  /api/hero  /api/scraper     ││
+│  └────┬─────────────┬────────────┬──────────────┬──────┘│
+│       │             │            │              │        │
+│  ┌────▼─────────────▼────────────▼──────────────▼──────┐│
+│  │            Service Layer (Business Logic)            ││
+│  │  AuthService │ JobService │ HeroService │ ScraperSvc ││
+│  └────┬─────────────┬────────────┬──────────────┬──────┘│
+│       │             │            │              │        │
+│  ┌────▼─────────────▼────────────▼──────────────▼──────┐│
+│  │                   MongoDB (Atlas)                    ││
+│  │  Users│Profiles│Jobs│Applications│Posts│ScrapedData  ││
+│  └─────────────────────────────────────────────────────┘│
+└────────────────────┬────────────────────────────────────┘
+                     │ WebSocket / Message Passing
+┌────────────────────▼────────────────────────────────────┐
+│            CHROME EXTENSION (Manifest V3)                │
+│  ┌──────────┐ ┌──────────────┐ ┌──────────────────────┐ │
+│  │Background│ │Content Script│ │  Popup UI (React)    │ │
+│  │ Service  │ │(LinkedIn DOM)│ │  Status / Controls   │ │
+│  │ Worker   │ │              │ │                      │ │
+│  └────┬─────┘ └──────┬───────┘ └──────────────────────┘ │
+│       │              │                                   │
+│  ┌────▼──────────────▼─────────────────────────────────┐│
+│  │   Anti-Detection Engine (Delays, Fingerprinting)    ││
+│  └─────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────┘
+```
+
+**Communication Flow**:
+- Web App ↔ Extension: `chrome.runtime.sendMessage` + WebSocket bridge
+- User configures everything on the Next.js dashboard
+- Extension executes LinkedIn actions on the already-logged-in browser
+- Extension reports status back to dashboard in real-time
+
+---
+
+## MODULE LIST (19 Modules)
+
+### Phase 1: Foundation (Modules 1-5)
+### Phase 2: Core Features (Modules 6-10)
+### Phase 3: Advanced Features (Modules 11-14)
+### Phase 4: Polish & Scale (Modules 15-19)
+
+---
+
+## MODULE 1: Project Setup & Architecture Foundation
+
+**Purpose**: Set up the entire project structure, install all dependencies, configure TypeScript, ESLint, Tailwind, folder structure, and environment configuration.
+
+**What to implement**:
+1. Folder structure:
+   ```
+   app/
+     (auth)/           → Auth pages (login, register, forgot-password)
+       login/page.tsx
+       register/page.tsx
+     (dashboard)/      → Protected dashboard layout
+       layout.tsx       → Sidebar + topbar shell
+       page.tsx         → Dashboard home (stats overview)
+       jobs/            → Job automation pages
+       hero/            → Become a Hero pages
+       scraper/         → Data scraping pages
+       settings/        → User settings
+       analytics/       → Analytics & reports
+     api/               → API Route Handlers
+       auth/[...nextauth]/route.ts
+       jobs/route.ts
+       hero/route.ts
+       scraper/route.ts
+       websocket/route.ts
+   components/
+     ui/                → Reusable UI primitives (Button, Input, Card, Modal, Toast, etc.)
+     layout/            → Sidebar, Topbar, Footer
+     dashboard/         → Dashboard-specific components
+     jobs/              → Job automation components
+     hero/              → Hero mode components
+     scraper/           → Scraper components
+   lib/
+     db/                → MongoDB connection, models, schemas
+     services/          → Business logic services
+     ai/                → AI provider abstraction layer
+     anti-detection/    → Human behavior simulation
+     utils/             → Shared utilities
+     hooks/             → Custom React hooks
+     validators/        → Zod schemas for validation
+   extension/           → Chrome Extension (separate build)
+     manifest.json
+     background/        → Service worker
+     content/           → Content scripts for LinkedIn
+     popup/             → Extension popup UI
+     utils/             → Shared extension utilities
+   public/
+     icons/             → App icons, favicons
+     images/            → Static images
+   ```
+
+2. Dependencies to install:
+   - **Database**: `mongoose` (MongoDB ODM)
+   - **Auth**: `next-auth@5` (Auth.js v5 for Next.js 16)
+   - **Validation**: `zod` (schema validation)
+   - **State Management**: `zustand` (lightweight, 2KB)
+   - **UI Components**: `@radix-ui/react-*` (headless, accessible primitives)
+   - **Animations**: `framer-motion` (production animations)
+   - **Icons**: `lucide-react` (beautiful, tree-shakeable)
+   - **Charts**: `recharts` (analytics visualizations)
+   - **Date**: `date-fns` (lightweight date utilities)
+   - **Forms**: `react-hook-form` + `@hookform/resolvers` (performant forms)
+   - **Toast**: `sonner` (beautiful toast notifications)
+   - **PDF**: `@react-pdf/renderer` (resume generation)
+   - **Markdown**: `react-markdown` (content rendering)
+   - **Rate Limiting**: `rate-limiter-flexible` (API protection)
+   - **Encryption**: `crypto-js` (API key encryption at rest)
+   - **WebSocket**: `socket.io` + `socket.io-client` (real-time extension ↔ web)
+
+3. Environment variables structure (.env.local):
+   ```
+   MONGODB_URI=
+   NEXTAUTH_SECRET=
+   NEXTAUTH_URL=
+   ENCRYPTION_MASTER_KEY=  (for encrypting user API keys at rest)
+   ```
+
+4. TypeScript path aliases and strict configuration
+5. ESLint + Prettier configuration
+6. Tailwind v4 theme setup with custom design tokens
+
+**Performance Considerations**:
+- Use `dynamic()` imports for heavy components (charts, PDF renderer)
+- Configure `next.config.ts` with `experimental.optimizePackageImports` for barrel file optimization
+- Set up `bundle-analyzer` for monitoring bundle size
+- Configure image optimization in next.config.ts
+
+**SEO Considerations**:
+- Set up metadata API in root layout
+- Configure robots.txt and sitemap.xml generation
+- Add Open Graph and Twitter card metadata templates
+- Set up structured data (JSON-LD) for landing pages
+
+---
+
+## MODULE 2: Database Schema & MongoDB Setup
+
+**Purpose**: Design and implement all MongoDB collections, indexes, and data models using Mongoose.
+
+**Collections to create**:
+
+1. **User** — Core user document
+   - `_id`, `name`, `email`, `image`, `hashedPassword`
+   - `linkedinProfile`: { name, headline, url, profilePicUrl }
+   - `aiApiKeys`: { provider: enum[gemini|openai|anthropic|groq], encryptedKey: string, isValid: boolean }[] — AES-256-GCM encrypted
+   - `settings`: { timezone, language, notificationPrefs, dailyLimits: { applies, posts, scrapes } }
+   - `subscription`: { plan: 'free', startDate } — future-proofing even if free
+   - `stats`: { totalApplied, totalPosts, totalScraped, successRate }
+   - `createdAt`, `updatedAt`
+   - **Indexes**: email (unique), createdAt
+
+2. **Resume** — User's resume data
+   - `userId` (ref User), `name`, `isDefault: boolean`
+   - `contactInfo`: { phone, email, location, linkedin, github, portfolio }
+   - `summary`: string
+   - `experience`: [{ company, title, startDate, endDate, current, description, highlights[] }]
+   - `education`: [{ school, degree, field, startDate, endDate, gpa }]
+   - `skills`: string[]
+   - `certifications`: [{ name, issuer, date }]
+   - `projects`: [{ name, description, url, tech[] }]
+   - `rawText`: string (original parsed resume text for AI context)
+   - `pdfUrl`: string (stored PDF link)
+   - **Indexes**: userId, isDefault
+
+3. **JobSearch** — Saved search configurations
+   - `userId`, `name`, `keywords`, `location`, `remote: boolean`
+   - `experienceLevel`: enum[], `datePosted`: enum
+   - `easyApplyOnly: boolean`, `salary`: { min, max }
+   - `excludeCompanies`: string[], `excludeKeywords`: string[]
+   - `isActive: boolean`, `schedule`: cron expression (for recurring searches)
+   - **Indexes**: userId, isActive
+
+4. **JobApplication** — Individual job application records
+   - `userId`, `jobSearchId` (ref JobSearch)
+   - `jobTitle`, `company`, `location`, `jobUrl`, `jobDescription`
+   - `status`: enum[found|tailoring|applying|applied|failed|skipped|interview|rejected|offered]
+   - `tailoredResume`: { summary, skills[], highlights[] } — AI-generated modifications
+   - `formAnswers`: [{ question, answer, fieldType }]
+   - `appliedAt`, `notes`
+   - `matchScore`: number (AI-calculated job-resume match %)
+   - **Indexes**: userId + status (compound), appliedAt, company
+
+5. **HeroProfile** — "Become a Hero" configuration
+   - `userId`, `niche`: string, `targetAudience`: string
+   - `contentPillars`: string[] (3-5 themes to post about)
+   - `postingSchedule`: { days: number[], timesPerWeek: number, preferredTimes: string[] }
+   - `groups`: [{ groupId, name, url, joined: boolean, joinedAt }]
+   - `hashtags`: string[] (tracked hashtags)
+   - `voiceTone`: enum[professional|casual|inspirational|educational|humorous]
+   - `contentQueue`: [{ content, scheduledFor, status }]
+   - **Indexes**: userId
+
+6. **Post** — LinkedIn post records
+   - `userId`, `heroProfileId`
+   - `content`: string, `type`: enum[text|image|carousel|poll|video|article]
+   - `hashtags`: string[], `targetGroups`: string[]
+   - `status`: enum[draft|scheduled|posting|posted|failed]
+   - `scheduledFor`: Date, `postedAt`: Date
+   - `engagement`: { views, likes, comments, shares, impressions }
+   - `linkedinPostUrl`: string
+   - **Indexes**: userId + status, scheduledFor
+
+7. **ScrapedData** — Scraped LinkedIn data
+   - `userId`, `scraperConfigId`
+   - `type`: enum[post|profile|company|job]
+   - `data`: Mixed (flexible schema for different data types)
+   - `source`: { url, scrapedAt }
+   - `tags`: string[]
+   - `actions`: [{ type: enum[commented|reached_out|saved|dismissed], at: Date, content: string }]
+   - **Indexes**: userId + type, scrapedAt, tags
+
+8. **ScraperConfig** — Scraper search configurations
+   - `userId`, `name`, `type`: enum[posts|profiles|companies]
+   - `keywords`: string[], `filters`: Mixed
+   - `schedule`: cron, `isActive: boolean`
+   - `maxResults`: number
+   - **Indexes**: userId, isActive
+
+9. **ActivityLog** — All automation activity for audit
+   - `userId`, `action`: string, `module`: enum[jobs|hero|scraper]
+   - `details`: Mixed, `status`: enum[success|failure|skipped]
+   - `timestamp`, `linkedinUrl`: string
+   - **TTL Index**: timestamp (auto-delete after 90 days)
+   - **Indexes**: userId + module, timestamp
+
+10. **DailyUsage** — Rate limiting and daily usage tracking
+    - `userId`, `date`: Date (YYYY-MM-DD)
+    - `actions`: { applies: number, posts: number, scrapes: number, profileViews: number, messages: number }
+    - **Indexes**: userId + date (compound unique)
+
+**Performance**:
+- All queries should use covered indexes
+- Use MongoDB aggregation pipeline for analytics
+- Enable MongoDB connection pooling (max 10 connections)
+- Use lean() for read-only queries (skip Mongoose hydration)
+- Implement cursor-based pagination, never skip-limit for large datasets
+
+---
+
+## MODULE 3: Authentication System (NextAuth.js v5)
+
+**Purpose**: Implement user authentication with email/password and social OAuth providers.
+
+**What to implement**:
+
+1. **NextAuth.js v5 Configuration** (`auth.ts` at project root):
+   - MongoDB adapter for session/user storage
+   - JWT strategy (stateless, better for VPS scaling)
+   - Credential provider (email + password with bcrypt hashing)
+   - Google OAuth provider (optional, for easy signup)
+   - GitHub OAuth provider (optional, developer audience)
+   - Session callback: attach userId, role to JWT token
+   - Custom pages: `/login`, `/register`
+
+2. **Auth Pages**:
+   - `/login` — Email/password login + OAuth buttons
+   - `/register` — Registration with name, email, password
+   - `/forgot-password` — Password reset flow (email-based)
+   - All pages should be **statically optimized** (no server data dependencies)
+
+3. **Middleware** (`middleware.ts`):
+   - Protect all `/dashboard/*` routes
+   - Redirect authenticated users away from auth pages
+   - Rate limit auth API endpoints (5 attempts per minute per IP)
+
+4. **Security**:
+   - bcrypt for password hashing (12 salt rounds)
+   - CSRF protection (built into NextAuth)
+   - Secure HTTP-only cookies
+   - Rate limiting on login/register endpoints
+   - Input validation with Zod on all auth endpoints
+
+**UI**:
+- Clean, minimal auth pages with glassmorphism card design
+- Animated transitions between login/register
+- Password strength indicator on register
+- Social login buttons with provider icons
+- Loading states and error handling with toast notifications
+
+---
+
+## MODULE 4: Dashboard Layout & Navigation
+
+**Purpose**: Build the main dashboard shell — sidebar, topbar, responsive layout, and navigation.
+
+**What to implement**:
+
+1. **Dashboard Layout** (`app/(dashboard)/layout.tsx`):
+   - Server component wrapping all dashboard pages
+   - Sidebar + main content area grid layout
+   - Mobile-responsive: sidebar becomes bottom nav or hamburger drawer
+
+2. **Sidebar Component**:
+   - Collapsible sidebar (icon-only mode on collapse)
+   - Navigation items with icons (Lucide):
+     - Dashboard (Home) — overview stats
+     - Job Automation — Easy Apply automation
+     - Become a Hero — LinkedIn presence builder
+     - Data Scraper — Scraping & outreach
+     - Analytics — Charts and insights
+     - Settings — Profile, API keys, preferences
+   - Active state indicator (animated pill/highlight)
+   - User avatar + name at bottom with dropdown (logout, profile)
+   - Smooth collapse/expand animation (Framer Motion)
+
+3. **Topbar Component**:
+   - Page title (dynamic based on route)
+   - Extension connection status indicator (green dot = connected, red = disconnected)
+   - Notification bell with count badge
+   - Quick action button (start/stop automation)
+   - Global search (Cmd+K shortcut)
+
+4. **Dashboard Home Page** (`app/(dashboard)/page.tsx`):
+   - Stats cards: Total Applied, Success Rate, Posts This Week, Connections Made
+   - Recent activity feed (last 10 actions)
+   - Quick-start cards for each feature module
+   - Extension install CTA if not detected
+   - "Getting Started" checklist for new users
+
+**Performance**:
+- Sidebar and topbar as client components (interactive)
+- Dashboard page uses server components with `Suspense` boundaries
+- Stats fetched server-side, streamed with loading skeletons
+- Use `React.memo` on sidebar items to prevent re-renders
+- Animate layout transitions with `layout` animations in Framer Motion
+- Use CSS `will-change` sparingly for animated elements
+
+**UI Design System**:
+- Color palette: Deep navy (#0A0F1C) background, electric blue (#3B82F6) primary, soft white (#F8FAFC) text
+- Dark mode by default (LinkedIn power users prefer dark)
+- 8px spacing grid
+- Border radius: 12px for cards, 8px for buttons, 6px for inputs
+- Subtle glassmorphism on cards (backdrop-blur + semi-transparent bg)
+- Micro-interactions on hover (scale 1.02, shadow elevation)
+- Typography: Inter or Geist (already set up) for UI, mono for data
+
+---
+
+## MODULE 5: Chrome Extension Foundation
+
+**Purpose**: Create the Chrome Extension (Manifest V3) that operates on LinkedIn pages within the user's browser.
+
+**What to implement**:
+
+1. **Manifest.json**:
+   ```json
+   {
+     "manifest_version": 3,
+     "name": "LinkedBoost",
+     "version": "1.0.0",
+     "permissions": ["activeTab", "storage", "tabs", "scripting", "alarms"],
+     "host_permissions": ["https://www.linkedin.com/*"],
+     "background": { "service_worker": "background.js", "type": "module" },
+     "content_scripts": [{
+       "matches": ["https://www.linkedin.com/*"],
+       "js": ["content.js"],
+       "run_at": "document_idle"
+     }],
+     "action": { "default_popup": "popup.html" }
+   }
+   ```
+
+2. **Background Service Worker** (`extension/background/`):
+   - WebSocket connection to Next.js app for receiving commands
+   - Message relay between web app and content script
+   - Chrome alarm-based scheduling (for periodic tasks)
+   - Connection state management (reconnect with exponential backoff)
+   - Command queue (buffer commands when content script not ready)
+
+3. **Content Script** (`extension/content/`):
+   - LinkedIn DOM interaction layer
+   - Page detection: which LinkedIn page is the user on? (feed, jobs, profile, messaging)
+   - DOM mutation observer for SPA navigation detection
+   - Action executors: click, type, scroll, upload, select
+   - All actions wrapped in anti-detection layer (Module 7)
+
+4. **Extension ↔ Web App Communication**:
+   - WebSocket server in Next.js API route (using Socket.IO)
+   - Auth token exchange: extension gets a temporary token from web app
+   - Message types: `EXECUTE_ACTION`, `REPORT_STATUS`, `HEARTBEAT`, `SYNC_CONFIG`
+   - Binary protocol for efficient data transfer
+
+5. **Extension Popup UI**:
+   - Simple React popup (built with Vite for fast builds)
+   - Shows: connection status, current task, pause/resume buttons
+   - "Open Dashboard" link to web app
+   - Login prompt if not authenticated
+
+6. **Extension Build System**:
+   - Vite config for extension build (separate from Next.js)
+   - Content script bundled separately (injected into LinkedIn pages)
+   - Background service worker bundled with all dependencies
+   - Hot reload during development
+
+**Anti-Detection (Critical)**:
+- Content script does NOT modify LinkedIn's DOM suspiciously
+- All interactions go through native event dispatching (not synthetic)
+- No `document.querySelector` patterns that LinkedIn can detect
+- Use `MutationObserver` instead of polling for DOM changes
+- Extension fingerprint is that of a normal browser extension
+
+---
+
+## MODULE 6: AI Provider Abstraction Layer (BYOK)
+
+**Purpose**: Create a unified AI interface that supports multiple providers (Gemini, OpenAI, Anthropic/Claude, Groq) using the user's own API keys.
+
+**What to implement**:
+
+1. **AI Provider Interface** (`lib/ai/provider.ts`):
+   - Unified interface: `generateText(prompt, options)`, `generateJSON(prompt, schema)`, `streamText(prompt)`
+   - Provider implementations:
+     - `GeminiProvider` — Google Generative AI SDK
+     - `OpenAIProvider` — OpenAI SDK (also supports compatible APIs)
+     - `AnthropicProvider` — Anthropic SDK
+     - `GroqProvider` — Groq SDK (fast inference, free tier)
+   - Provider factory: `createAIProvider(providerName, apiKey)`
+
+2. **API Key Management** (`lib/ai/key-manager.ts`):
+   - Encrypt API keys before storing in MongoDB (AES-256-GCM via Node.js crypto)
+   - Decrypt keys only when making AI calls (never send to client)
+   - Key validation: test API key with a lightweight request before saving
+   - Key rotation support
+   - Encryption master key from environment variable
+
+3. **Prompt Templates** (`lib/ai/prompts/`):
+   - Resume tailoring prompt
+   - Job match scoring prompt
+   - Form answer generation prompt
+   - LinkedIn post generation prompt
+   - Outreach message generation prompt
+   - All prompts use structured output (JSON mode) for reliable parsing
+
+4. **AI Settings Page** (`app/(dashboard)/settings/ai/page.tsx`):
+   - Add/remove API keys for different providers
+   - Test key validity with one click
+   - Set default provider preference
+   - Usage stats per provider (local tracking)
+   - Provider comparison info (speed, quality, cost)
+
+5. **Rate Limiting & Error Handling**:
+   - Per-provider rate limiting (respect each API's limits)
+   - Automatic retry with exponential backoff on 429 errors
+   - Fallback to secondary provider if primary fails
+   - Graceful degradation: if all AI fails, skip tailoring and apply with base resume
+
+**Security**:
+- API keys encrypted at rest with AES-256-GCM
+- Keys decrypted in-memory only during API calls
+- Never log or expose keys in error messages
+- Keys tied to userId — users can only access their own
+- Master encryption key stored as environment variable, never in code
+
+---
+
+## MODULE 7: Anti-Detection Engine
+
+**Purpose**: Build the core anti-detection system that makes all LinkedIn automation appear human.
+
+**What to implement**:
+
+1. **Human Behavior Simulator** (`lib/anti-detection/human-simulator.ts`):
+   - `randomDelay(min, max)` — Gaussian-distributed delays (not uniform random)
+   - `humanType(element, text)` — Type with variable keystroke delays (50-250ms), occasional typos + corrections
+   - `humanClick(element)` — Move mouse in Bezier curve path to element, then click
+   - `humanScroll(distance)` — Scroll in chunks with variable speed, pause at content
+   - `readingPause(contentLength)` — Simulate reading time based on content length (200-300 WPM)
+
+2. **Action Rate Limiter** (`lib/anti-detection/rate-limiter.ts`):
+   - Daily action budget per category:
+     - Job applications: max 15/day (safe limit)
+     - Posts: max 2/day
+     - Profile views: max 30/day
+     - Connection requests: max 20/day
+     - Comments: max 15/day
+     - Messages: max 10/day
+   - Cooldown periods between same-type actions (5-15 min for applies)
+   - Session duration limits (max 2-3 hours active, then break)
+   - Weekend/holiday awareness (reduce activity)
+   - Progressive warm-up: new accounts start with 50% limits, increase over 2 weeks
+
+3. **Session Manager** (`lib/anti-detection/session-manager.ts`):
+   - Random session start times (don't always start at same time)
+   - Natural session durations (30min - 2hr)
+   - Break patterns (browse feed for 5min between job applications)
+   - End-of-session cooldown (gradually reduce activity speed)
+
+4. **Activity Patterns** (`lib/anti-detection/patterns.ts`):
+   - Mix automated actions with "browsing" actions (scroll feed, view profiles)
+   - Randomize the order of job applications (not sequential)
+   - Vary the time spent on each job posting (30s - 3min)
+   - Occasionally skip jobs (human wouldn't apply to every single one)
+   - Interact with feed between applies (like a post, read an article)
+
+5. **Detection Avoidance**:
+   - Monitor for LinkedIn CAPTCHA/verification prompts
+   - Auto-pause if unusual page behavior detected (rate limit page, security check)
+   - Alert user immediately if account warning detected
+   - Track and log all suspicious responses from LinkedIn
+
+**Configuration** (user-adjustable):
+- Speed: Conservative / Balanced / Aggressive
+- Working hours: Set active hours (e.g., 9am-5pm)
+- Days active: Select days of week
+- Max daily actions per category
+
+---
+
+## MODULE 8: Resume Parser & Builder
+
+**Purpose**: Parse user's existing resume, store structured data, and generate tailored versions per job.
+
+**What to implement**:
+
+1. **Resume Upload & Parsing** (`lib/services/resume-service.ts`):
+   - Accept PDF upload
+   - Parse PDF text using `pdf-parse` library
+   - Send parsed text to AI provider for structured extraction:
+     - Contact info, summary, experience, education, skills, certifications, projects
+   - Store structured data in Resume collection
+   - Allow manual editing of parsed data
+
+2. **Resume Editor UI** (`app/(dashboard)/settings/resume/page.tsx`):
+   - Section-by-section editor (Experience, Education, Skills, etc.)
+   - Drag-and-drop reordering of sections
+   - Rich text editing for descriptions
+   - Preview panel (live PDF preview)
+   - Multiple resume support (create variants)
+
+3. **AI Resume Tailoring** (`lib/services/resume-tailor.ts`):
+   - Input: base resume + job description
+   - AI generates:
+     - Tailored summary highlighting relevant experience
+     - Reordered/emphasized skills matching job requirements
+     - Modified bullet points to use job's keywords
+     - Match score (0-100%) with explanation
+   - Output: tailored resume data (not a new document, just modifications)
+   - Cache tailored versions to avoid re-generating for similar jobs
+
+4. **PDF Generation** (`lib/services/pdf-generator.ts`):
+   - Generate professional PDF from structured resume data
+   - Multiple templates (clean, modern, ATS-friendly)
+   - ATS-optimized: proper heading hierarchy, no tables/columns, standard fonts
+   - Generate on-the-fly for each application
+
+**Performance**:
+- PDF generation is CPU-intensive → use Web Workers or background API route
+- Cache AI responses for similar job descriptions (hash-based)
+- Lazy load PDF preview component
+- Stream PDF generation progress to UI
+
+---
+
+## MODULE 9: Job Search & Easy Apply Automation
+
+**Purpose**: The core feature — search for jobs on LinkedIn, find Easy Apply listings, tailor resume, fill forms, and apply automatically.
+
+**What to implement**:
+
+1. **Job Search Configuration UI** (`app/(dashboard)/jobs/page.tsx`):
+   - Search form: keywords, location, remote/hybrid/onsite, experience level
+   - Filters: date posted, salary range, company exclusions, keyword exclusions
+   - Easy Apply only toggle (default ON)
+   - Save search configurations for recurring use
+   - Schedule searches (run daily at specific time)
+
+2. **Job Discovery** (Extension content script):
+   - Navigate to LinkedIn Jobs with search parameters
+   - Scroll through results, extracting:
+     - Job title, company, location, salary (if shown), posted date
+     - Easy Apply badge detection
+     - Job URL and unique ID
+   - Pagination handling (load more results)
+   - Send discovered jobs back to web app via WebSocket
+
+3. **Job Analysis & Scoring** (Server-side):
+   - Receive job listings from extension
+   - AI-powered match scoring: compare job description vs user's resume
+   - Filter jobs below match threshold (user-configurable, default 60%)
+   - Rank jobs by match score
+   - Detect duplicate applications (already applied)
+   - Present scored jobs in dashboard for user review
+
+4. **Automated Application Flow** (Extension):
+   - For each approved job (auto or manual approval):
+     a. Navigate to job posting
+     b. Click "Easy Apply" button
+     c. Detect form fields on each page:
+        - Text inputs → fill from resume data
+        - Dropdowns → select matching option
+        - Radio buttons → select based on AI analysis
+        - File upload → upload tailored resume PDF
+        - Custom questions → AI generates answers
+     d. Handle multi-step forms (detect "Next" button, navigate pages)
+     e. Review step → verify all fields filled
+     f. Submit application
+     g. Record result (success/failure) with screenshot
+   - Between applications: random delays (5-15 min), feed browsing
+
+5. **Job Application Dashboard** (`app/(dashboard)/jobs/applications/page.tsx`):
+   - Table/Kanban view of all applications
+   - Status tracking: Found → Tailoring → Applying → Applied → Interview → etc.
+   - Filter by status, company, date, match score
+   - Click to view job details, tailored resume, form answers
+   - Export to CSV
+
+6. **Smart Form Answering** (`lib/services/form-answerer.ts`):
+   - Common question templates (pre-answered, user configurable):
+     - "Are you authorized to work in [country]?" → Yes/No
+     - "Do you require visa sponsorship?" → Yes/No
+     - "What is your expected salary?" → From user settings
+     - "Years of experience with [skill]?" → From resume
+   - AI fallback for unknown questions
+   - User can pre-answer common questions in settings
+   - Learn from user's manual corrections (store Q&A pairs)
+
+**Performance**:
+- Job list uses virtual scrolling (only render visible items)
+- Pagination: cursor-based API with infinite scroll
+- Background job processing: queue system for sequential applications
+- Cache job descriptions to avoid re-fetching
+- SSR for initial job dashboard load, client-side for real-time updates
+
+**Anti-Detection specifics for this module**:
+- Never apply to more than 15 jobs per day
+- Random delay between applications: 5-15 minutes
+- Browse the job posting for 30-120 seconds before applying
+- Occasionally view company profile between applications
+- Random scroll patterns while "reading" job description
+- Don't apply to all results — skip some randomly (10-20%)
+
+---
+
+## MODULE 10: "Become a Hero" — LinkedIn Presence Builder
+
+**Purpose**: Help users build LinkedIn authority through automated content creation, group engagement, and strategic posting.
+
+**What to implement**:
+
+1. **Hero Profile Setup** (`app/(dashboard)/hero/setup/page.tsx`):
+   - Wizard-style setup:
+     Step 1: Define your niche (AI suggestions based on resume/profile)
+     Step 2: Set content pillars (3-5 themes to post about)
+     Step 3: Choose voice tone (professional, casual, inspirational, etc.)
+     Step 4: Set posting schedule (days, times, frequency)
+     Step 5: Define target audience
+   - AI-generated strategy based on niche
+
+2. **Group Discovery & Management** (`app/(dashboard)/hero/groups/page.tsx`):
+   - AI-powered group recommendations based on user's niche
+   - Extension scrapes LinkedIn for relevant groups
+   - Group list with: name, member count, activity level, relevance score
+   - One-click join (via extension)
+   - Track joined groups with engagement stats
+   - Smart group selection for cross-posting
+
+3. **Content Generation** (`app/(dashboard)/hero/content/page.tsx`):
+   - AI post generator:
+     - Input: topic/theme or "surprise me"
+     - Output: formatted post with hashtags
+     - Post types: text, carousel outline, poll, article
+   - Content calendar view (weekly/monthly)
+   - Post queue with drag-and-drop scheduling
+   - Edit generated posts before scheduling
+   - A/B testing: generate 2-3 variants, let user pick
+
+4. **Automated Posting** (Extension):
+   - At scheduled time, extension navigates to LinkedIn post creator
+   - Types the post content with human-like speed
+   - Adds hashtags
+   - If targeting groups: navigate to group, create post there
+   - Confirm post submission
+   - Capture post URL for tracking
+
+5. **Engagement Automation** (Extension):
+   - Auto-like posts from target hashtags/groups (within limits)
+   - Auto-comment on trending posts in niche (AI-generated relevant comments)
+   - Reply to comments on user's own posts
+   - Follow key influencers in niche
+
+6. **Post Analytics** (`app/(dashboard)/hero/analytics/page.tsx`):
+   - Track engagement per post (views, likes, comments, shares)
+   - Best performing content types and topics
+   - Optimal posting time analysis
+   - Growth metrics over time (profile views, connection requests received)
+   - AI recommendations based on analytics
+
+**Anti-Detection for posting**:
+- Maximum 1-2 posts per day
+- Cross-post to max 3 groups per post (spread over hours)
+- Variable posting times (not exactly same time daily)
+- Mix automated posts with manual engagement reminders
+- Don't like/comment on too many posts in a short time
+- Space engagement actions by 2-5 minutes
+
+**LinkedIn Algorithm Optimization**:
+- Posts between 1000-3000 characters perform best
+- Use 3-5 hashtags maximum
+- First line is the "hook" — make it compelling
+- Include call-to-action (question, "agree?", etc.)
+- Native content only (no external links in post body)
+- Respond to every comment within 1 hour (notification to user)
+
+---
+
+## MODULE 11: Data Scraper & Outreach
+
+**Purpose**: Scrape LinkedIn for posts needing services, find potential clients/connections, and automate personalized outreach.
+
+**What to implement**:
+
+1. **Scraper Configuration** (`app/(dashboard)/scraper/page.tsx`):
+   - Search configuration:
+     - Keywords: "looking for developer", "need website", "hiring freelancer"
+     - Content type: posts, comments, job postings, profiles
+     - Time range: last 24h, week, month
+     - Filters: industry, location, company size
+   - Save and schedule scraper configs
+   - Multiple scraper configs for different services/niches
+
+2. **LinkedIn Scraping** (Extension):
+   - Search LinkedIn with configured keywords
+   - Extract from posts: author name, headline, post content, engagement, post URL
+   - Extract from profiles: name, headline, location, mutual connections
+   - Handle pagination and infinite scroll
+   - Respect rate limits (max 50 scrapes per session)
+
+3. **Lead Management Dashboard** (`app/(dashboard)/scraper/leads/page.tsx`):
+   - Table view of scraped leads/posts
+   - AI-powered relevance scoring
+   - Tag system for categorization
+   - Status tracking: New → Contacted → Responded → Converted → Closed
+   - Notes and follow-up reminders
+   - Export to CSV
+
+4. **Automated Commenting** (Extension):
+   - AI generates contextual, helpful comments
+   - Not spammy — genuinely relevant, adds value
+   - Comment variations (never same comment twice)
+   - Rate limited: max 10-15 comments per day
+   - User approval before posting (optional, recommended)
+
+5. **Outreach Messages** (Extension):
+   - AI-generated personalized connection requests
+   - Reference the user's post/need in the message
+   - Template system with variables ({{name}}, {{company}}, {{need}})
+   - Follow-up message scheduling
+   - Rate limited: max 10 connection requests per day
+
+6. **Outreach Templates** (`app/(dashboard)/scraper/templates/page.tsx`):
+   - Pre-built outreach templates
+   - AI template generator based on user's service offering
+   - Variable system for personalization
+   - A/B test effectiveness tracking
+
+**Anti-Detection**:
+- Never scrape more than 30-50 results per session
+- View profiles naturally (scroll, pause, read)
+- Space outreach messages by 10-20 minutes
+- Don't send identical messages
+- Mix genuine engagement with automated outreach
+- Never comment the same text on different posts
+
+---
+
+## MODULE 12: Analytics & Insights Dashboard
+
+**Purpose**: Comprehensive analytics showing automation performance, job search insights, and LinkedIn growth.
+
+**What to implement**:
+
+1. **Overview Dashboard** (`app/(dashboard)/analytics/page.tsx`):
+   - Key metrics cards with sparkline trends
+   - Date range picker (7d, 30d, 90d, custom)
+   - Activity heatmap (GitHub-style calendar)
+
+2. **Job Analytics**:
+   - Applications per day/week/month (bar chart)
+   - Response rate by company size/industry
+   - Match score distribution (histogram)
+   - Top skills requested (word cloud)
+   - Application funnel: Applied → Viewed → Interview → Offer
+   - Average time to response
+
+3. **Hero Analytics**:
+   - Post engagement over time (line chart)
+   - Best performing content types (pie chart)
+   - Optimal posting times (heatmap)
+   - Follower/connection growth (area chart)
+   - Hashtag performance comparison
+
+4. **Scraper Analytics**:
+   - Leads found per search config
+   - Outreach response rates
+   - Conversion funnel: Found → Contacted → Responded → Converted
+   - Best performing outreach templates
+
+5. **Daily Usage Tracker**:
+   - Actions used today vs daily limits (progress bars)
+   - Safety score (how "human" your activity looks)
+   - Warnings if approaching limits
+
+**Performance**:
+- All charts lazy-loaded with `dynamic()` import
+- Data aggregation done server-side via MongoDB aggregation pipeline
+- Cache analytics results for 5 minutes (revalidate on demand)
+- Use `Suspense` boundaries for each chart section
+- Skeleton loaders for all chart components
+
+---
+
+## MODULE 13: Settings & User Profile
+
+**Purpose**: Central settings page for all user configurations.
+
+**What to implement**:
+
+1. **Profile Settings** (`app/(dashboard)/settings/page.tsx`):
+   - Account info (name, email, password change)
+   - LinkedIn profile connection status
+   - Profile picture upload
+
+2. **AI API Keys** (`app/(dashboard)/settings/ai/page.tsx`):
+   - Add/manage API keys for Gemini, OpenAI, Anthropic, Groq
+   - Test key validity
+   - Set default provider
+   - Key usage tracking
+
+3. **Resume Management** (`app/(dashboard)/settings/resume/page.tsx`):
+   - Upload/parse resumes
+   - Edit structured resume data
+   - Set default resume
+   - Pre-answer common application questions
+
+4. **Automation Settings** (`app/(dashboard)/settings/automation/page.tsx`):
+   - Daily action limits (per category)
+   - Working hours schedule
+   - Speed setting (Conservative/Balanced/Aggressive)
+   - Auto-apply vs manual approval toggle
+   - Notification preferences
+
+5. **Extension Settings** (`app/(dashboard)/settings/extension/page.tsx`):
+   - Extension connection status
+   - Extension download link / install instructions
+   - Debug mode toggle
+   - Extension logs viewer
+
+6. **Data & Privacy** (`app/(dashboard)/settings/privacy/page.tsx`):
+   - Export all data (GDPR compliance)
+   - Delete account and all data
+   - Data retention preferences
+   - Activity log viewer
+
+---
+
+## MODULE 14: Notification System
+
+**Purpose**: Real-time notifications for automation events.
+
+**What to implement**:
+
+1. **In-App Notifications**:
+   - Toast notifications (using Sonner) for real-time events
+   - Notification center (bell icon dropdown with history)
+   - Notification types:
+     - Application submitted / failed
+     - Post published / scheduled
+     - Lead found matching criteria
+     - Daily limit approaching
+     - Extension disconnected
+     - Error/warning alerts
+     - Account safety warnings
+
+2. **Extension Notifications**:
+   - Chrome notifications for critical events
+   - Badge count on extension icon
+
+3. **Email Notifications** (optional future):
+   - Daily summary digest
+   - Critical alert emails (account warning, etc.)
+
+**Architecture**:
+- Server-Sent Events (SSE) from Next.js API routes for real-time updates
+- Falls back to polling if SSE not available
+- Notification queue in MongoDB (or in-memory for session)
+
+---
+
+## MODULE 15: Landing Page & SEO
+
+**Purpose**: Public-facing marketing/landing page to attract users and drive sign-ups.
+
+**What to implement**:
+
+1. **Landing Page** (`app/page.tsx`):
+   - Hero section with compelling headline + CTA
+   - Feature showcase (3 pillars: Auto Apply, Hero Mode, Smart Scraper)
+   - How It Works section (3-step visual)
+   - Testimonials/social proof section
+   - FAQ accordion
+   - Footer with links
+
+2. **Additional Pages**:
+   - `/features` — Detailed feature breakdown
+   - `/about` — Project story, mission
+   - `/privacy` — Privacy policy
+   - `/terms` — Terms of service
+   - `/blog` — SEO content (MDX-based)
+
+3. **SEO Optimization**:
+   - All public pages are static (SSG via `generateStaticParams`)
+   - Metadata API for every page (title, description, OG image)
+   - JSON-LD structured data (SoftwareApplication schema)
+   - `robots.txt` allowing all public pages
+   - Auto-generated `sitemap.xml`
+   - Canonical URLs
+   - Alt text on all images
+   - Semantic HTML (proper headings, landmarks)
+   - Core Web Vitals optimization:
+     - LCP < 2.5s: hero image/animation preloaded
+     - FID < 100ms: minimal JS on landing page
+     - CLS < 0.1: explicit dimensions on all media
+   - OpenGraph images (auto-generated per page)
+   - Twitter Card metadata
+
+4. **Performance for Landing**:
+   - Static generation (ISR not needed for marketing pages)
+   - Image optimization with next/image (WebP/AVIF)
+   - Font optimization (preload Geist, font-display: swap)
+   - Critical CSS inlined
+   - Lazy load below-fold sections
+   - Bundle size < 100KB for landing page JS
+
+---
+
+## MODULE 16: Real-Time Communication Layer
+
+**Purpose**: WebSocket/SSE infrastructure for extension ↔ dashboard real-time communication.
+
+**What to implement**:
+
+1. **Socket.IO Server** (custom server for Next.js on VPS):
+   - Since deploying on VPS, can use custom server (not Vercel)
+   - Namespace: `/extension` for extension connections
+   - Namespace: `/dashboard` for dashboard clients
+   - Authentication via JWT token on connection
+   - Rooms: one room per userId
+
+2. **Event Types**:
+   - `extension:connected` / `extension:disconnected`
+   - `task:start` / `task:progress` / `task:complete` / `task:error`
+   - `job:found` / `job:applying` / `job:applied`
+   - `post:scheduled` / `post:published`
+   - `scraper:result` / `scraper:complete`
+   - `limit:warning` / `limit:reached`
+   - `safety:alert`
+
+3. **Message Queue**:
+   - Buffer messages when dashboard is offline
+   - Deliver on reconnection
+   - Max buffer size: 100 messages per user
+
+4. **Heartbeat System**:
+   - Extension pings every 30 seconds
+   - Dashboard shows live connection status
+   - Auto-reconnect with exponential backoff
+
+---
+
+## MODULE 17: Docker & VPS Deployment
+
+**Purpose**: Containerize the application and deploy on a VPS.
+
+**What to implement**:
+
+1. **Dockerfiles**:
+   - `Dockerfile` for Next.js app (multi-stage build):
+     - Stage 1: Install dependencies
+     - Stage 2: Build Next.js
+     - Stage 3: Production image (minimal, ~100MB)
+   - Custom server setup for Socket.IO support
+
+2. **docker-compose.yml**:
+   - Next.js app service
+   - MongoDB service (or point to Atlas)
+   - Nginx reverse proxy (SSL termination)
+   - Optional: Redis for caching (future)
+
+3. **Nginx Configuration**:
+   - SSL with Let's Encrypt (Certbot)
+   - WebSocket proxy pass for Socket.IO
+   - Gzip compression
+   - Static file caching headers
+   - Rate limiting at Nginx level
+   - Security headers (CSP, HSTS, X-Frame-Options)
+
+4. **CI/CD** (GitHub Actions):
+   - Build and test on push
+   - Docker image build and push to registry
+   - SSH deploy to VPS
+
+5. **Monitoring**:
+   - Health check endpoint `/api/health`
+   - Application logging (structured JSON logs)
+   - Error tracking (Sentry free tier or self-hosted)
+   - Uptime monitoring
+
+**Scaling Strategy**:
+- Vertical: Start with 2 vCPU / 4GB RAM VPS
+- Horizontal: Stateless Next.js behind Nginx load balancer
+- MongoDB: Atlas handles scaling automatically
+- WebSocket: Sticky sessions or Redis adapter for multi-instance
+
+---
+
+## MODULE 18: Testing & Quality Assurance
+
+**Purpose**: Test infrastructure for reliability.
+
+**What to implement**:
+
+1. **Unit Tests** (Vitest):
+   - AI provider abstraction tests
+   - Resume parser tests
+   - Form answerer logic tests
+   - Rate limiter tests
+   - Encryption/decryption tests
+
+2. **Integration Tests**:
+   - API route tests
+   - Database operation tests
+   - Auth flow tests
+
+3. **E2E Tests** (Playwright):
+   - Auth flow (login, register)
+   - Dashboard navigation
+   - Settings pages
+   - Job search configuration
+
+4. **Extension Tests**:
+   - Content script DOM interaction tests
+   - Message passing tests
+   - Anti-detection timing tests
+
+---
+
+## MODULE 19: Additional LinkedIn Features (Bonus)
+
+**Purpose**: Extra features that differentiate the platform.
+
+**Features to implement**:
+
+1. **Connection Manager**:
+   - Smart connection request sending based on mutual interests
+   - Auto-accept incoming connection requests (with criteria)
+   - Connection request message personalization
+   - Track pending connections
+
+2. **Profile Optimizer**:
+   - AI-powered LinkedIn profile analysis
+   - Headline optimization suggestions
+   - Summary/About rewriting
+   - Skills endorsement strategy
+   - Profile completeness score
+
+3. **Interview Prep Assistant**:
+   - Generate interview questions based on job description
+   - AI mock interview practice
+   - Company research summary (from LinkedIn data)
+   - Salary negotiation tips
+
+4. **Job Market Intelligence**:
+   - Track job posting trends in user's field
+   - Salary range analysis by role/location
+   - Top hiring companies in niche
+   - Skills demand analysis
+   - Weekly market digest
+
+5. **Auto-Follow/Unfollow**:
+   - Follow thought leaders in niche
+   - Unfollow inactive connections
+   - Manage follow list
+
+6. **Message Templates & Automation**:
+   - Thank you message after connection accept
+   - Follow-up messages for leads
+   - Birthday/work anniversary messages
+   - Template library
+
+7. **LinkedIn Profile Backup**:
+   - Export all LinkedIn data (posts, connections, messages)
+   - Local backup storage
+   - Profile version history
+
+---
+
+## Performance Optimization Matrix
+
+| Page/Feature | Rendering | Optimization | Target Metrics |
+|---|---|---|---|
+| Landing Page | SSG (Static) | Pre-rendered, minimal JS, image optimization | LCP <1.5s, TTI <2s, CLS 0 |
+| Auth Pages | SSG | Static forms, minimal bundle | LCP <1s, FID <50ms |
+| Dashboard Home | SSR + Streaming | Suspense boundaries, parallel data fetching | LCP <2s, TTI <3s |
+| Job List | SSR + Client | Virtual scroll, cursor pagination, incremental loading | Smooth 60fps scroll |
+| Job Details | SSR | Cached responses, streaming AI content | LCP <2s |
+| Analytics | SSR + Dynamic import | Lazy charts, cached aggregations, skeleton loaders | LCP <2.5s |
+| Content Generator | Client | Streaming AI responses, optimistic UI | First token <1s |
+| Settings | SSR | Form state management, optimistic updates | LCP <1.5s |
+| Extension Popup | Client (Vite) | Minimal bundle (<50KB), instant open | Open <100ms |
+
+**Global Optimizations**:
+- `React.lazy` + `Suspense` for code splitting
+- Route-level code splitting (automatic with App Router)
+- `next/image` for all images (WebP/AVIF, lazy load, blur placeholder)
+- `next/font` for font optimization (already using Geist)
+- Mongoose `lean()` for all read queries
+- MongoDB connection pooling (5-10 connections)
+- Response compression (Brotli via Nginx)
+- HTTP/2 via Nginx
+- Service Worker for offline dashboard shell (future)
+- `React.memo` + `useMemo` + `useCallback` only where measured necessary
+- Bundle analysis with `@next/bundle-analyzer` — target <200KB first-load JS
+
+---
+
+## Security Checklist
+
+- [ ] All user inputs validated with Zod schemas
+- [ ] API keys encrypted with AES-256-GCM at rest
+- [ ] CSRF protection on all state-changing endpoints
+- [ ] Rate limiting on auth endpoints (5/min/IP)
+- [ ] Rate limiting on API endpoints (100/min/user)
+- [ ] HTTP-only secure cookies for sessions
+- [ ] Content Security Policy headers
+- [ ] SQL/NoSQL injection prevention (Mongoose parameterized queries)
+- [ ] XSS prevention (React's built-in escaping + CSP)
+- [ ] CORS configured for web app domain only
+- [ ] Environment variables never exposed to client
+- [ ] Passwords hashed with bcrypt (12 rounds)
+- [ ] Input sanitization on all user-generated content
+- [ ] File upload validation (type, size limits)
+- [ ] Regular dependency audits (npm audit)
+
+---
+
+## Module Dependency Graph
+
+```
+Module 1 (Setup) ──────────────────────────────────────────────┐
+    │                                                          │
+    ├── Module 2 (Database) ─── Module 3 (Auth) ──┐            │
+    │                                              │            │
+    ├── Module 4 (Dashboard Layout) ───────────────┤            │
+    │                                              │            │
+    ├── Module 5 (Extension Foundation) ───────────┤            │
+    │                                              │            │
+    ├── Module 6 (AI Layer / BYOK) ────────────────┤            │
+    │                                              │            │
+    ├── Module 7 (Anti-Detection) ─────────────────┤            │
+    │                                              │            │
+    │   [Phase 2 - above modules needed first]     │            │
+    │                                              │            │
+    ├── Module 8 (Resume Parser) ──── needs 2,6    │            │
+    │                                              │            │
+    ├── Module 9 (Job Auto-Apply) ─── needs 5,6,7,8│            │
+    │                                              │            │
+    ├── Module 10 (Hero Mode) ─────── needs 5,6,7  │            │
+    │                                              │            │
+    ├── Module 11 (Scraper) ──────── needs 5,6,7  │            │
+    │                                              │            │
+    │   [Phase 3 - feature modules needed]         │            │
+    │                                              │            │
+    ├── Module 12 (Analytics) ─────── needs 2,9,10,11          │
+    │                                              │            │
+    ├── Module 13 (Settings) ──────── needs 2,3,6  │            │
+    │                                              │            │
+    ├── Module 14 (Notifications) ─── needs 16     │            │
+    │                                              │            │
+    │   [Phase 4 - polish]                         │            │
+    │                                              │            │
+    ├── Module 15 (Landing + SEO) ─── independent  │            │
+    │                                              │            │
+    ├── Module 16 (Real-Time Comms) ── needs 5     │            │
+    │                                              │            │
+    ├── Module 17 (Docker/Deploy) ──── needs all   │            │
+    │                                              │            │
+    ├── Module 18 (Testing) ───────── needs all    │            │
+    │                                              │            │
+    └── Module 19 (Bonus Features) ── needs 5,6,7  │            │
+                                                               │
+```
+
+**Parallel execution opportunities**:
+- Modules 2, 4, 5, 6, 7 can be built in parallel after Module 1
+- Module 15 (Landing) can be built anytime, independent of backend
+- Modules 9, 10, 11 can be built in parallel once their dependencies are met
+- Module 12 can start once any one of 9/10/11 is complete
+
+---
+
+## Copy-Paste Module Prompt Template
+
+When pasting a module into Claude agent, use this format:
+
+```
+You are building a LinkedIn Automation SaaS called "LinkedBoost".
+
+**Tech Stack**: Next.js 16 (App Router), React 19, TypeScript 5, Tailwind CSS v4, MongoDB (Mongoose), NextAuth.js v5, Chrome Extension (Manifest V3), Socket.IO, Zustand, Radix UI, Framer Motion, Zod
+
+**Project structure**: [paste current folder structure]
+
+**Current module**: MODULE [N] — [Name]
+
+[Paste the full module description from this plan]
+
+**Instructions**:
+- Implement this module completely with production-quality code
+- Follow the existing code patterns and project structure
+- Use TypeScript strict mode, proper types for everything
+- Use Tailwind CSS v4 for all styling
+- Make the UI premium (glassmorphism, micro-interactions, smooth animations)
+- Ensure dark mode support
+- Add proper error handling and loading states
+- Use Zod for input validation
+- Follow the anti-detection patterns described
+- Optimize for performance as noted in the plan
+```

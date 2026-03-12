@@ -1,0 +1,91 @@
+import mongoose, { Schema, type Document, type Model } from "mongoose";
+
+export type ApplicationStatus =
+  | "found"
+  | "tailoring"
+  | "applying"
+  | "applied"
+  | "failed"
+  | "skipped"
+  | "interview"
+  | "rejected"
+  | "offered";
+
+export interface IJobApplication extends Document {
+  userId: mongoose.Types.ObjectId;
+  jobSearchId?: mongoose.Types.ObjectId;
+  jobTitle: string;
+  company: string;
+  location?: string;
+  jobUrl: string;
+  jobDescription: string;
+  status: ApplicationStatus;
+  tailoredResume?: {
+    summary?: string;
+    skills?: string[];
+    highlights?: string[];
+  };
+  formAnswers: {
+    question: string;
+    answer: string;
+    fieldType: string;
+  }[];
+  appliedAt?: Date;
+  notes?: string;
+  matchScore?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const JobApplicationSchema = new Schema<IJobApplication>(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    jobSearchId: { type: Schema.Types.ObjectId, ref: "JobSearch" },
+    jobTitle: { type: String, required: true },
+    company: { type: String, required: true },
+    location: String,
+    jobUrl: { type: String, required: true },
+    jobDescription: { type: String, default: "" },
+    status: {
+      type: String,
+      enum: [
+        "found",
+        "tailoring",
+        "applying",
+        "applied",
+        "failed",
+        "skipped",
+        "interview",
+        "rejected",
+        "offered",
+      ],
+      default: "found",
+    },
+    tailoredResume: {
+      summary: String,
+      skills: [String],
+      highlights: [String],
+    },
+    formAnswers: [
+      {
+        question: String,
+        answer: String,
+        fieldType: String,
+      },
+    ],
+    appliedAt: Date,
+    notes: String,
+    matchScore: Number,
+  },
+  { timestamps: true }
+);
+
+JobApplicationSchema.index({ userId: 1, status: 1 });
+JobApplicationSchema.index({ appliedAt: -1 });
+JobApplicationSchema.index({ company: 1 });
+
+const JobApplication: Model<IJobApplication> =
+  mongoose.models.JobApplication ||
+  mongoose.model<IJobApplication>("JobApplication", JobApplicationSchema);
+
+export default JobApplication;
