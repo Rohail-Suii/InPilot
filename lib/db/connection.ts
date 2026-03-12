@@ -9,14 +9,18 @@ if (!MONGODB_URI) {
 interface MongooseCache {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
+  retryCount: number;
 }
+
+const MAX_RETRIES = 5;
+const RETRY_DELAY_MS = 2000;
 
 declare global {
   // eslint-disable-next-line no-var
   var mongooseCache: MongooseCache | undefined;
 }
 
-const cached: MongooseCache = global.mongooseCache ?? { conn: null, promise: null };
+const cached: MongooseCache = global.mongooseCache ?? { conn: null, promise: null, retryCount: 0 };
 global.mongooseCache = cached;
 
 export async function connectDB(): Promise<typeof mongoose> {
@@ -33,9 +37,20 @@ export async function connectDB(): Promise<typeof mongoose> {
 
   try {
     cached.conn = await cached.promise;
+    cached.retryCount = 0; // Reset on success
   } catch (e) {
     cached.promise = null;
-    throw e;
+    cached.retryCount++;
+
+    if (cached.retryCount >= MAX_RETRIES) {
+      console.error(`[DB] Failed to connect after ${MAX_RETRIES} attempts. Giving up.`);
+      cached.retryCount = 0; // Reset for future attempts
+      throw e;
+    }
+
+    console.error(`[DB] Connection failed (attempt ${cached.retryCount}/${MAX_RETRIES}). Retrying in ${RETRY_DELAY_MS}ms...`);
+    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * cached.retryCount));
+    return connectDB(); // Retry with backoff
   }
 
   return cached.conn;

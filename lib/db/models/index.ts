@@ -27,3 +27,7 @@ export type { IActivityLog } from "./activity-log";
 
 export { default as DailyUsage } from "./daily-usage";
 export type { IDailyUsage } from "./daily-usage";
+
+export { default as VerificationToken } from "./verification-token";
+export type { IVerificationToken } from "./verification-token";
+export { generateOTP, generateResetToken } from "./verification-token";

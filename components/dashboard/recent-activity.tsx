@@ -1,10 +1,27 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock } from "lucide-react";
 
+interface ActivityItem {
+  _id: string;
+  action: string;
+  module: string;
+  status: string;
+  timestamp: string;
+}
+
 export function RecentActivity() {
-  // Will be populated from DB in later modules
-  const activities: { action: string; module: string; time: string; status: string }[] = [];
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+
+  useEffect(() => {
+    fetch("/api/dashboard")
+      .then((res) => res.json())
+      .then((data) => setActivities(data.recentActivity || []))
+      .catch(() => {});
+  }, []);
 
   return (
     <Card>
@@ -27,18 +44,23 @@ export function RecentActivity() {
           </div>
         ) : (
           <div className="space-y-3">
-            {activities.map((activity, i) => (
+            {activities.map((activity) => (
               <div
-                key={i}
+                key={activity._id}
                 className="flex items-center justify-between rounded-lg bg-white/5 px-4 py-3"
               >
                 <div className="flex items-center gap-3">
                   <Badge variant={activity.status === "success" ? "success" : "error"}>
                     {activity.status}
                   </Badge>
-                  <span className="text-sm text-white">{activity.action}</span>
+                  <div>
+                    <span className="text-sm text-white">{activity.action}</span>
+                    <span className="text-xs text-white/30 ml-2">{activity.module}</span>
+                  </div>
                 </div>
-                <span className="text-xs text-white/40">{activity.time}</span>
+                <span className="text-xs text-white/40">
+                  {formatTimestamp(activity.timestamp)}
+                </span>
               </div>
             ))}
           </div>
@@ -46,4 +68,15 @@ export function RecentActivity() {
       </CardContent>
     </Card>
   );
+}
+
+function formatTimestamp(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Check,
   Circle,
@@ -47,8 +47,22 @@ const steps = [
 
 export function GettingStarted() {
   const [isOpen, setIsOpen] = useState(true);
-  // All incomplete by default since this is initial state
-  const completedSteps = new Set<number>();
+  const [completedSteps, setCompletedSteps] = useState(new Set<number>());
+
+  useEffect(() => {
+    // Fetch completion status from API
+    Promise.all([
+      fetch("/api/settings/api-keys").then((r) => r.json()).catch(() => ({ keys: [] })),
+      fetch("/api/settings/profile").then((r) => r.json()).catch(() => ({})),
+    ]).then(([keysData, profileData]) => {
+      const completed = new Set<number>();
+      // Step 1: Has at least one API key
+      if (keysData.keys?.length > 0) completed.add(1);
+      // Step 2: Has a resume (check user.settings or resume presence)
+      if (profileData.user?.settings?.dailyLimits) completed.add(4);
+      setCompletedSteps(completed);
+    });
+  }, []);
 
   const progress = (completedSteps.size / steps.length) * 100;
 

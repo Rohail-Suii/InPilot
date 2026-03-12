@@ -1,7 +1,7 @@
 // LinkedBoost Background Service Worker
 // Handles WebSocket connection to the web app and relays commands to content scripts
 
-const WS_URL = "ws://localhost:3001";
+const DEFAULT_WS_URL = "ws://localhost:3001";
 const HEARTBEAT_INTERVAL = 30000;
 const RECONNECT_BASE_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
@@ -11,6 +11,14 @@ let heartbeatTimer = null;
 let reconnectAttempts = 0;
 let authToken = null;
 let commandQueue = [];
+let wsUrl = DEFAULT_WS_URL;
+
+// Load WebSocket URL from storage
+chrome.storage.local.get("wsUrl", (result) => {
+  if (result.wsUrl) {
+    wsUrl = result.wsUrl;
+  }
+});
 
 // --- WebSocket Connection ---
 
@@ -18,7 +26,7 @@ function connect() {
   if (ws && ws.readyState === WebSocket.OPEN) return;
 
   try {
-    ws = new WebSocket(WS_URL);
+    ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       console.log("[LinkedBoost] WebSocket connected");
@@ -172,6 +180,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "AUTH", token: authToken }));
       }
+      sendResponse({ success: true });
+      break;
+
+    case "SET_WS_URL":
+      wsUrl = message.url;
+      chrome.storage.local.set({ wsUrl: message.url });
+      // Reconnect with new URL
+      if (ws) {
+        ws.close();
+      }
+      reconnectAttempts = 0;
+      connect();
       sendResponse({ success: true });
       break;
 

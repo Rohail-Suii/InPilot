@@ -36,12 +36,6 @@ export interface IUser extends Document {
     plan: string;
     startDate: Date;
   };
-  stats: {
-    totalApplied: number;
-    totalPosts: number;
-    totalScraped: number;
-    successRate: number;
-  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,12 +81,6 @@ const UserSchema = new Schema<IUser>(
     subscription: {
       plan: { type: String, default: "free" },
       startDate: { type: Date, default: Date.now },
-    },
-    stats: {
-      totalApplied: { type: Number, default: 0 },
-      totalPosts: { type: Number, default: 0 },
-      totalScraped: { type: Number, default: 0 },
-      successRate: { type: Number, default: 0 },
     },
   },
   { timestamps: true }

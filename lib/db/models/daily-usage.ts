@@ -9,6 +9,8 @@ export interface IDailyUsage extends Document {
     scrapes: number;
     profileViews: number;
     messages: number;
+    comments: number;
+    connectionRequests: number;
   };
 }
 
@@ -21,6 +23,8 @@ const DailyUsageSchema = new Schema<IDailyUsage>({
     scrapes: { type: Number, default: 0 },
     profileViews: { type: Number, default: 0 },
     messages: { type: Number, default: 0 },
+    comments: { type: Number, default: 0 },
+    connectionRequests: { type: Number, default: 0 },
   },
 });
 

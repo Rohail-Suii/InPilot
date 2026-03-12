@@ -29,6 +29,20 @@ export function formatRelativeTime(date: Date | string): string {
   return formatDate(date);
 }
 
+/**
+ * Sanitize text that will be sent to AI prompts.
+ * Strips common prompt injection patterns while preserving legitimate content.
+ */
+export function sanitizeForAI(text: string): string {
+  return text
+    // Remove common prompt injection markers
+    .replace(/\b(ignore previous instructions|disregard above|system prompt|you are now|act as|pretend to be)\b/gi, "[filtered]")
+    // Remove attempts to override system instructions with delimiters
+    .replace(/---+\s*(system|instruction|prompt)/gi, "[filtered]")
+    // Limit length to prevent token stuffing
+    .slice(0, 50000);
+}
+
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

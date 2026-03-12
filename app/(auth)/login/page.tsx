@@ -54,6 +54,11 @@ function LoginForm() {
       });
 
       if (result?.error) {
+        if (result.error.includes("EMAIL_NOT_VERIFIED")) {
+          toast.error("Please verify your email first");
+          router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
+          return;
+        }
         toast.error("Invalid email or password");
       } else {
         toast.success("Welcome back!");

@@ -1,5 +1,190 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import connectDB from "@/lib/db/connection";
+import { JobSearch, JobApplication } from "@/lib/db/models";
+import { jobSearchSchema } from "@/lib/validators";
+import { checkApiRateLimit } from "@/lib/utils/rate-limit";
+import {
+  processDiscoveredJobs,
+  prepareJobApplication,
+  completeApplication,
+  updateApplicationStatus,
+  getApplicationStats,
+} from "@/lib/services/job-analysis";
+import { answerFormQuestions } from "@/lib/services/form-answerer";
+import type { ApplicationStatus } from "@/lib/db/models";
 
-export async function GET() {
-  return NextResponse.json({ message: "Jobs API — coming in Module 9" });
+export async function GET(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rateLimit = await checkApiRateLimit(session.user.id);
+  if (!rateLimit.success) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const view = searchParams.get("view") || "searches";
+
+  await connectDB();
+
+  if (view === "applications") {
+    const status = searchParams.get("status");
+    const cursor = searchParams.get("cursor"); // cursor-based pagination
+    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
+    const filter: Record<string, unknown> = { userId: session.user.id };
+    if (status) filter.status = status;
+    if (cursor) filter._id = { $lt: cursor }; // Use _id as cursor (descending order)
+
+    const applications = await JobApplication.find(filter)
+      .sort({ _id: -1 })
+      .limit(limit + 1) // Fetch one extra to determine if there's a next page
+      .lean();
+
+    const hasMore = applications.length > limit;
+    const results = hasMore ? applications.slice(0, limit) : applications;
+    const nextCursor = hasMore ? results[results.length - 1]._id : null;
+
+    return NextResponse.json({ applications: results, nextCursor, hasMore });
+  }
+
+  if (view === "stats") {
+    const stats = await getApplicationStats(session.user.id);
+    return NextResponse.json({ stats });
+  }
+
+  const searches = await JobSearch.find({ userId: session.user.id })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return NextResponse.json({ searches });
 }
+
+export async function POST(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rateLimit = await checkApiRateLimit(session.user.id);
+  if (!rateLimit.success) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const action = searchParams.get("action");
+  const body = await req.json();
+
+  await connectDB();
+
+  // Create a new job search config
+  if (!action) {
+    const parsed = jobSearchSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    }
+    const search = await JobSearch.create({ ...parsed.data, userId: session.user.id });
+    return NextResponse.json({ search }, { status: 201 });
+  }
+
+  // Process discovered jobs from extension
+  if (action === "discover") {
+    const { jobs, jobSearchId, minMatchScore } = body;
+    if (!jobs?.length || !jobSearchId) {
+      return NextResponse.json({ error: "Jobs array and jobSearchId are required" }, { status: 400 });
+    }
+    try {
+      const result = await processDiscoveredJobs(
+        session.user.id,
+        jobs,
+        jobSearchId,
+        minMatchScore ?? 60
+      );
+      return NextResponse.json({ result });
+    } catch (error) {
+      console.error("[Jobs] Failed to process discovered jobs:", error);
+      const message = error instanceof Error ? error.message : "Failed to process jobs";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
+  // Prepare a job for application (tailor resume)
+  if (action === "prepare") {
+    const { applicationId } = body;
+    if (!applicationId) {
+      return NextResponse.json({ error: "applicationId is required" }, { status: 400 });
+    }
+    const result = await prepareJobApplication(session.user.id, applicationId);
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    return NextResponse.json({ success: true });
+  }
+
+  // Mark application as completed
+  if (action === "complete") {
+    const { applicationId, success, notes } = body;
+    if (!applicationId || typeof success !== "boolean") {
+      return NextResponse.json({ error: "applicationId and success are required" }, { status: 400 });
+    }
+    await completeApplication(session.user.id, applicationId, success, notes);
+    return NextResponse.json({ success: true });
+  }
+
+  // Update application status
+  if (action === "status") {
+    const { applicationId, status, notes } = body;
+    if (!applicationId || !status) {
+      return NextResponse.json({ error: "applicationId and status are required" }, { status: 400 });
+    }
+    await updateApplicationStatus(
+      session.user.id,
+      applicationId,
+      status as ApplicationStatus,
+      notes
+    );
+    return NextResponse.json({ success: true });
+  }
+
+  // Answer form questions
+  if (action === "answer-form") {
+    const { questions, userPreferences } = body;
+    if (!questions?.length) {
+      return NextResponse.json({ error: "Questions array is required" }, { status: 400 });
+    }
+    try {
+      const answers = await answerFormQuestions(session.user.id, questions, userPreferences);
+      return NextResponse.json({ answers });
+    } catch (error) {
+      console.error("[Jobs] Failed to answer form questions:", error);
+      const message = error instanceof Error ? error.message : "Failed to answer questions";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
+  return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+}
+
+export async function DELETE(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  await connectDB();
+  const search = await JobSearch.findOneAndDelete({ _id: id, userId: session.user.id });
+  if (!search) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true });
+}
+

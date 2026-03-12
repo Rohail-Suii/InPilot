@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import { registerSchema } from "@/lib/validators";
 import connectDB from "@/lib/db/connection";
 import User from "@/lib/db/models/user";
+import VerificationToken, { generateOTP } from "@/lib/db/models/verification-token";
+import { sendVerificationEmail } from "@/lib/email/resend";
 import { checkAuthRateLimit } from "@/lib/utils/rate-limit";
 
 export async function POST(req: NextRequest) {
@@ -52,6 +54,17 @@ export async function POST(req: NextRequest) {
       hashedPassword,
     });
 
+    // Generate verification OTP and send email
+    const otp = generateOTP();
+    await VerificationToken.create({
+      userId: user._id,
+      token: otp,
+      type: "email-verification",
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+    });
+
+    await sendVerificationEmail(user.email, user.name, otp);
+
     return NextResponse.json(
       {
         user: {
@@ -59,6 +72,7 @@ export async function POST(req: NextRequest) {
           name: user.name,
           email: user.email,
         },
+        requiresVerification: true,
       },
       { status: 201 }
     );
