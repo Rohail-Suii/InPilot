@@ -451,9 +451,10 @@ export default function Home() {
               <span className="text-sm font-semibold text-white">LinkedBoost</span>
             </div>
             <div className="flex items-center gap-6">
-              <a href="#features" className="text-xs text-white/30 hover:text-white/50 transition-colors">Features</a>
-              <a href="#how-it-works" className="text-xs text-white/30 hover:text-white/50 transition-colors">How it works</a>
-              <a href="#security" className="text-xs text-white/30 hover:text-white/50 transition-colors">Security</a>
+              <Link href="/features" className="text-xs text-white/30 hover:text-white/50 transition-colors">Features</Link>
+              <Link href="/about" className="text-xs text-white/30 hover:text-white/50 transition-colors">About</Link>
+              <Link href="/privacy" className="text-xs text-white/30 hover:text-white/50 transition-colors">Privacy</Link>
+              <Link href="/terms" className="text-xs text-white/30 hover:text-white/50 transition-colors">Terms</Link>
             </div>
             <p className="text-xs text-white/20">&copy; {new Date().getFullYear()} LinkedBoost. Free and open source.</p>
           </div>

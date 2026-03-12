@@ -16,6 +16,10 @@ import {
   LogOut,
   Zap,
   User,
+  Users,
+  UserCheck,
+  GraduationCap,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/lib/hooks/use-stores";
@@ -46,6 +50,26 @@ const navItems = [
     label: "Analytics",
     href: "/dashboard/analytics",
     icon: BarChart3,
+  },
+  {
+    label: "Connections",
+    href: "/dashboard/connections",
+    icon: Users,
+  },
+  {
+    label: "Profile Optimizer",
+    href: "/dashboard/profile-optimizer",
+    icon: UserCheck,
+  },
+  {
+    label: "Interview Prep",
+    href: "/dashboard/interview-prep",
+    icon: GraduationCap,
+  },
+  {
+    label: "Market Insights",
+    href: "/dashboard/market-insights",
+    icon: TrendingUp,
   },
   {
     label: "Settings",

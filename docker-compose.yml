@@ -1,0 +1,96 @@
+version: "3.8"
+
+services:
+  # ─── Next.js Application ───────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: linkedboost-app
+    restart: always
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    env_file:
+      - .env.production
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/linkedboost
+      - HOSTNAME=0.0.0.0
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - linkedboost-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ─── MongoDB ───────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: linkedboost-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+    environment:
+      - MONGO_INITDB_DATABASE=linkedboost
+    networks:
+      - linkedboost-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: ["mongod", "--bind_ip_all"]
+
+  # ─── Nginx Reverse Proxy ──────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: linkedboost-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ssl-certs:/etc/letsencrypt:ro
+      - certbot-webroot:/var/www/certbot:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - linkedboost-network
+
+  # ─── Certbot (SSL Certificate Renewal) ────────────────────────────
+  certbot:
+    image: certbot/certbot:latest
+    container_name: linkedboost-certbot
+    volumes:
+      - ssl-certs:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot; sleep 12h & wait $${!}; done;'"
+    networks:
+      - linkedboost-network
+
+# ─── Volumes ──────────────────────────────────────────────────────────
+volumes:
+  mongo-data:
+    driver: local
+  mongo-config:
+    driver: local
+  ssl-certs:
+    driver: local
+  certbot-webroot:
+    driver: local
+
+# ─── Networks ─────────────────────────────────────────────────────────
+networks:
+  linkedboost-network:
+    driver: bridge

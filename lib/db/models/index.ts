@@ -37,3 +37,15 @@ export { generateOTP, generateResetToken } from "./verification-token";
 
 export { default as OutreachTemplate } from "./outreach-template";
 export type { IOutreachTemplate } from "./outreach-template";
+
+export { default as ConnectionRequest } from "./connection-request";
+export type { IConnectionRequest, ConnectionRequestStatus } from "./connection-request";
+
+export { default as ProfileAnalysis } from "./profile-analysis";
+export type { IProfileAnalysis } from "./profile-analysis";
+
+export { default as InterviewPrep } from "./interview-prep";
+export type { IInterviewPrep, IInterviewQuestion, ICompanyResearch, ISalaryInsights } from "./interview-prep";
+
+export { default as MarketInsight } from "./market-insight";
+export type { IMarketInsight, MarketInsightType } from "./market-insight";

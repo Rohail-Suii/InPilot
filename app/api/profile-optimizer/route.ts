@@ -1,0 +1,181 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { auth } from "@/auth";
+import connectDB from "@/lib/db/connection";
+import { ProfileAnalysis } from "@/lib/db/models";
+import { checkApiRateLimit } from "@/lib/utils/rate-limit";
+import { getUserAIProvider } from "@/lib/ai/key-manager";
+import {
+  buildProfileAnalysisPrompt,
+  buildHeadlineOptimizerPrompt,
+  buildSummaryOptimizerPrompt,
+} from "@/lib/ai/prompts";
+
+const profileDataSchema = z.object({
+  headline: z.string().optional(),
+  summary: z.string().optional(),
+  experience: z
+    .array(
+      z.object({
+        title: z.string(),
+        company: z.string(),
+        description: z.string().default(""),
+      })
+    )
+    .optional(),
+  skills: z.array(z.string()).optional(),
+  education: z
+    .array(
+      z.object({
+        school: z.string(),
+        degree: z.string(),
+        field: z.string().default(""),
+      })
+    )
+    .optional(),
+  linkedinUrl: z.string().optional(),
+});
+
+const headlineSchema = z.object({
+  currentHeadline: z.string().min(1, "Current headline is required"),
+  industry: z.string().min(1, "Industry is required"),
+  skills: z.array(z.string()).min(1, "At least one skill is required"),
+});
+
+const summarySchema = z.object({
+  currentSummary: z.string().default(""),
+  experience: z.string().min(1, "Experience overview is required"),
+  targetRole: z.string().min(1, "Target role is required"),
+});
+
+export async function GET(req: Request) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimit = await checkApiRateLimit(session.user.id);
+    if (!rateLimit.success) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
+    await connectDB();
+
+    const analysis = await ProfileAnalysis.findOne({ userId: session.user.id })
+      .sort({ analyzedAt: -1 })
+      .lean();
+
+    return NextResponse.json({ analysis });
+  } catch (error) {
+    console.error("[ProfileOptimizer] Error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimit = await checkApiRateLimit(session.user.id);
+    if (!rateLimit.success) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const action = searchParams.get("action");
+    const body = await req.json();
+
+    await connectDB();
+
+    const aiProvider = await getUserAIProvider(session.user.id);
+    if (!aiProvider) {
+      return NextResponse.json(
+        { error: "No AI API key configured. Please add one in Settings." },
+        { status: 400 }
+      );
+    }
+
+    if (action === "analyze") {
+      const parsed = profileDataSchema.safeParse(body);
+      if (!parsed.success) {
+        return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+      }
+
+      const messages = buildProfileAnalysisPrompt(parsed.data);
+      const result = await aiProvider.generateJSON<{
+        overallScore: number;
+        sections: {
+          headline: { score: number; current: string; suggestion: string };
+          summary: { score: number; current: string; suggestion: string };
+          experience: { score: number; suggestions: string[] };
+          skills: { score: number; missing: string[]; suggestions: string[] };
+          education: { score: number };
+        };
+        recommendations: string[];
+      }>(messages);
+
+      const analysis = await ProfileAnalysis.findOneAndUpdate(
+        { userId: session.user.id },
+        {
+          $set: {
+            linkedinUrl: parsed.data.linkedinUrl || "",
+            overallScore: result.overallScore,
+            sections: result.sections,
+            recommendations: result.recommendations,
+            analyzedAt: new Date(),
+          },
+        },
+        { upsert: true, new: true }
+      );
+
+      return NextResponse.json({ analysis });
+    }
+
+    if (action === "optimize-headline") {
+      const parsed = headlineSchema.safeParse(body);
+      if (!parsed.success) {
+        return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+      }
+
+      const messages = buildHeadlineOptimizerPrompt(
+        parsed.data.currentHeadline,
+        parsed.data.industry,
+        parsed.data.skills
+      );
+      const result = await aiProvider.generateJSON<{
+        headlines: { text: string; reasoning: string }[];
+      }>(messages);
+
+      return NextResponse.json({ headlines: result.headlines });
+    }
+
+    if (action === "optimize-summary") {
+      const parsed = summarySchema.safeParse(body);
+      if (!parsed.success) {
+        return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+      }
+
+      const messages = buildSummaryOptimizerPrompt(
+        parsed.data.currentSummary,
+        parsed.data.experience,
+        parsed.data.targetRole
+      );
+      const result = await aiProvider.generateJSON<{
+        summary: string;
+        keyChanges: string[];
+        keywordsUsed: string[];
+      }>(messages);
+
+      return NextResponse.json({ result });
+    }
+
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  } catch (error) {
+    console.error("[ProfileOptimizer] Error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

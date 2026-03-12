@@ -1,0 +1,63 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js build output
+.next
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Documentation
+*.md
+DOCUMENTATION.md
+README.md
+Plan.txt
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+
+# Browser extension source
+extension/
+
+# Docker files (prevent recursive builds)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# TypeScript build info
+tsconfig.tsbuildinfo
+
+# Test files
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+coverage/
+
+# Nginx config (used as volume mount, not in image)
+nginx/
+
+# GitHub
+.github/
+
+# Bundle analyzer
+.next/analyze/
