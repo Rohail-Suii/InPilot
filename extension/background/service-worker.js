@@ -1,70 +1,102 @@
 // LinkedBoost Background Service Worker
 // Handles WebSocket connection to the web app and relays commands to content scripts
 
-const DEFAULT_WS_URL = "ws://localhost:3001";
+import { io } from "./socket.io.esm.min.js";
+
+const DEFAULT_WS_URL = "http://localhost:3001";
 const HEARTBEAT_INTERVAL = 30000;
 const RECONNECT_BASE_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 
-let ws = null;
+let socket = null;
 let heartbeatTimer = null;
 let reconnectAttempts = 0;
+let reconnectTimer = null;
 let authToken = null;
 let commandQueue = [];
 let wsUrl = DEFAULT_WS_URL;
 
+function normalizeWsUrl(url) {
+  if (url.startsWith("ws://")) return `http://${url.slice(5)}`;
+  if (url.startsWith("wss://")) return `https://${url.slice(6)}`;
+  return url;
+}
+
 // Load WebSocket URL from storage
 chrome.storage.local.get("wsUrl", (result) => {
   if (result.wsUrl) {
-    wsUrl = result.wsUrl;
+    wsUrl = normalizeWsUrl(result.wsUrl);
   }
 });
 
 // --- WebSocket Connection ---
 
 function connect() {
-  if (ws && ws.readyState === WebSocket.OPEN) return;
+  if (socket && socket.connected) return;
 
   try {
-    ws = new WebSocket(wsUrl);
+    if (socket) {
+      socket.removeAllListeners();
+      socket.disconnect();
+    }
 
-    ws.onopen = () => {
+    socket = io(`${normalizeWsUrl(wsUrl)}/extension`, {
+      path: "/api/ws",
+      transports: ["websocket", "polling"],
+      reconnection: false,
+    });
+
+    socket.on("connect", () => {
       console.log("[LinkedBoost] WebSocket connected");
       reconnectAttempts = 0;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       updateConnectionStatus(true);
       startHeartbeat();
 
       // Authenticate if we have a token
       if (authToken) {
-        ws.send(JSON.stringify({ type: "AUTH", token: authToken }));
+        socket.emit("AUTH", { token: authToken });
       }
 
       // Flush command queue
       while (commandQueue.length > 0) {
         const cmd = commandQueue.shift();
-        ws.send(JSON.stringify(cmd));
+        sendToServer(cmd);
       }
-    };
+    });
 
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        handleServerMessage(message);
-      } catch (e) {
-        console.error("[LinkedBoost] Failed to parse message:", e);
-      }
-    };
+    socket.on("EXECUTE_ACTION", (message) => {
+      handleServerMessage({ type: "EXECUTE_ACTION", ...message });
+    });
 
-    ws.onclose = () => {
+    socket.on("SYNC_CONFIG", (data) => {
+      handleServerMessage({ type: "SYNC_CONFIG", data });
+    });
+
+    socket.on("AUTH_SUCCESS", (data) => {
+      handleServerMessage({ type: "AUTH_SUCCESS", ...data });
+    });
+
+    socket.on("AUTH_FAILURE", (data) => {
+      handleServerMessage({ type: "AUTH_FAILURE", ...data });
+    });
+
+    socket.on("disconnect", () => {
       console.log("[LinkedBoost] WebSocket disconnected");
       updateConnectionStatus(false);
       stopHeartbeat();
       scheduleReconnect();
-    };
+    });
 
-    ws.onerror = (error) => {
+    socket.on("connect_error", (error) => {
       console.error("[LinkedBoost] WebSocket error:", error);
-    };
+      updateConnectionStatus(false);
+      stopHeartbeat();
+      scheduleReconnect();
+    });
   } catch (e) {
     console.error("[LinkedBoost] Failed to create WebSocket:", e);
     scheduleReconnect();
@@ -72,20 +104,24 @@ function connect() {
 }
 
 function scheduleReconnect() {
+  if (reconnectTimer) return;
   const delay = Math.min(
     RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts),
     MAX_RECONNECT_DELAY
   );
   reconnectAttempts++;
   console.log(`[LinkedBoost] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
-  setTimeout(connect, delay);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connect();
+  }, delay);
 }
 
 function startHeartbeat() {
   stopHeartbeat();
   heartbeatTimer = setInterval(() => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "HEARTBEAT", timestamp: Date.now() }));
+    if (socket && socket.connected) {
+      socket.emit("HEARTBEAT", { timestamp: Date.now() });
     }
   }, HEARTBEAT_INTERVAL);
 }
@@ -147,8 +183,16 @@ async function forwardToContentScript(message) {
 }
 
 function sendToServer(message) {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(message));
+  if (socket && socket.connected) {
+    if (message.type === "REPORT_STATUS") {
+      socket.emit("REPORT_STATUS", {
+        event: "task:progress",
+        payload: message,
+      });
+      return;
+    }
+
+    socket.emit(message.type || "MESSAGE", message);
   } else {
     commandQueue.push(message);
     if (commandQueue.length > 100) {
@@ -177,18 +221,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     case "SET_AUTH_TOKEN":
       authToken = message.token;
       chrome.storage.local.set({ authToken: message.token });
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "AUTH", token: authToken }));
+      if (socket && socket.connected) {
+        socket.emit("AUTH", { token: authToken });
       }
       sendResponse({ success: true });
       break;
 
     case "SET_WS_URL":
-      wsUrl = message.url;
-      chrome.storage.local.set({ wsUrl: message.url });
+      wsUrl = normalizeWsUrl(message.url);
+      chrome.storage.local.set({ wsUrl });
       // Reconnect with new URL
-      if (ws) {
-        ws.close();
+      if (socket) {
+        socket.disconnect();
       }
       reconnectAttempts = 0;
       connect();
@@ -197,7 +241,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     case "GET_STATUS":
       sendResponse({
-        connected: ws?.readyState === WebSocket.OPEN,
+        connected: socket?.connected ?? false,
         authenticated: !!authToken,
       });
       break;
@@ -231,7 +275,7 @@ chrome.storage.local.get("authToken", (result) => {
 chrome.alarms.create("reconnect-check", { periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "reconnect-check") {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    if (!socket || !socket.connected) {
       connect();
     }
   }

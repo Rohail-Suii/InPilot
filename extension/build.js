@@ -25,6 +25,22 @@ fs.copyFileSync(
   path.join(DIST, "background.js")
 );
 
+// Copy Socket.IO client (ESM) for MV3 background service worker
+const socketIoSrc = path.join(
+  SRC,
+  "..",
+  "node_modules",
+  "socket.io-client",
+  "dist",
+  "socket.io.esm.min.js"
+);
+const socketIoDest = path.join(DIST, "socket.io.esm.min.js");
+if (fs.existsSync(socketIoSrc)) {
+  fs.copyFileSync(socketIoSrc, socketIoDest);
+} else {
+  console.warn("Socket.IO client not found. Run npm install in the repo root.");
+}
+
 // Copy content script
 fs.copyFileSync(
   path.join(SRC, "content", "content-script.js"),
