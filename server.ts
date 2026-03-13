@@ -8,7 +8,7 @@
 
 import { createServer } from "http";
 import next from "next";
-import { initSocketServer } from "./lib/websocket/server";
+import { initSocketServer, initRawWebSocketServer } from "./lib/websocket/server";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
@@ -24,6 +24,7 @@ async function main() {
   // Create a separate HTTP server for WebSocket on port 3001
   const wsServer = createServer();
   initSocketServer(wsServer);
+  initRawWebSocketServer(wsServer);
   wsServer.listen(wsPort, () => {
     console.log(`> WebSocket server listening on port ${wsPort}`);
   });

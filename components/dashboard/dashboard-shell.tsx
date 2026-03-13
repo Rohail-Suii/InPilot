@@ -2,8 +2,11 @@
 
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { useWebSocket } from "@/lib/websocket/client";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
+  useWebSocket();
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#0A0F1C]">
       <a href="#main-content" className="skip-to-content">

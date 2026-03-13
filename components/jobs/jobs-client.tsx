@@ -22,6 +22,9 @@ import {
   Star,
   ChevronDown,
   ChevronUp,
+  Play,
+  Square,
+  Zap,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -39,6 +42,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { jobSearchSchema } from "@/lib/validators";
+import { useExtensionStore } from "@/lib/hooks/use-stores";
+import { useWebSocket } from "@/lib/websocket/client";
 import { z } from "zod";
 
 type JobSearchFormValues = z.input<typeof jobSearchSchema>;
@@ -94,6 +99,10 @@ export function JobsClient() {
   const [statusFilter, setStatusFilter] = useState("");
   const [expandedApp, setExpandedApp] = useState<string | null>(null);
 
+  const { isConnected, currentTask } = useExtensionStore();
+  const { startAutomation, stopAutomation } = useWebSocket();
+  const [automationRunning, setAutomationRunning] = useState(false);
+
   const fetchSearches = useCallback(async () => {
     const res = await fetch("/api/jobs");
     if (res.ok) {
@@ -132,6 +141,41 @@ export function JobsClient() {
     fetchSearches();
   };
 
+  const handleStartAutomation = (searchId: string) => {
+    if (!isConnected) {
+      toast.error("Extension not connected. Open LinkedIn in Chrome with the extension enabled.");
+      return;
+    }
+    startAutomation(searchId);
+    setAutomationRunning(true);
+    toast.success("Automation started! The extension will search and apply to jobs.");
+  };
+
+  const handleStopAutomation = () => {
+    stopAutomation();
+    setAutomationRunning(false);
+    toast.info("Automation stopping...");
+  };
+
+  // Auto-refresh applications when automation is running
+  useEffect(() => {
+    if (!automationRunning) return;
+    const interval = setInterval(() => {
+      fetchApplications();
+      fetchStats();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [automationRunning, fetchApplications, fetchStats]);
+
+  // Detect when automation completes via currentTask
+  useEffect(() => {
+    if (currentTask === null && automationRunning) {
+      setAutomationRunning(false);
+      fetchApplications();
+      fetchStats();
+    }
+  }, [currentTask, automationRunning, fetchApplications, fetchStats]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -139,10 +183,29 @@ export function JobsClient() {
           <h2 className="text-2xl font-bold text-white">Job Automation</h2>
           <p className="text-white/50 mt-1">Configure searches and track applications</p>
         </div>
-        <Button onClick={() => setAddOpen(true)}>
-          <Plus className="h-4 w-4" />New Search
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-sm">
+            <span className={`h-2 w-2 rounded-full ${isConnected ? "bg-emerald-400" : "bg-red-400"}`} />
+            <span className="text-white/40">{isConnected ? "Extension connected" : "Extension offline"}</span>
+          </div>
+          {automationRunning && (
+            <Button variant="outline" size="sm" onClick={handleStopAutomation} className="text-red-400 border-red-400/30">
+              <Square className="h-3.5 w-3.5 mr-1.5" />Stop
+            </Button>
+          )}
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4" />New Search
+          </Button>
+        </div>
       </div>
+
+      {/* Automation Status Banner */}
+      {currentTask && (
+        <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 px-5 py-3 flex items-center gap-3">
+          <Loader2 className="h-4 w-4 text-blue-400 animate-spin shrink-0" />
+          <p className="text-sm text-blue-300">{currentTask}</p>
+        </div>
+      )}
 
       {/* Stats Overview */}
       {stats && <JobStatsCards stats={stats} />}
@@ -200,9 +263,20 @@ export function JobsClient() {
                           )}
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => deleteSearch(search._id)}>
-                        <Trash2 className="h-4 w-4 text-red-400" />
-                      </Button>
+                      <div className="flex flex-col gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleStartAutomation(search._id)}
+                          disabled={automationRunning || !isConnected}
+                          title={!isConnected ? "Extension not connected" : automationRunning ? "Automation running" : "Start auto-apply"}
+                        >
+                          <Play className="h-4 w-4 text-emerald-400" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => deleteSearch(search._id)}>
+                          <Trash2 className="h-4 w-4 text-red-400" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

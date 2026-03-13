@@ -1097,9 +1097,11 @@ function ResumeTab() {
 
 function ExtensionTab() {
   const { isConnected } = useExtensionStore();
+  const { data: session } = useSession();
   const [debugMode, setDebugMode] = useState(false);
   const [extensionLogs, setExtensionLogs] = useState<ActivityLogItem[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
 
   // Load debug mode from localStorage on mount
   useEffect(() => {
@@ -1220,6 +1222,51 @@ function ExtensionTab() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Connection Token */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5 text-purple-400" />
+            Connection Token
+          </CardTitle>
+          <CardDescription>
+            Copy this token and paste it in the extension popup to connect
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Input
+                readOnly
+                value={session?.user?.id || "Loading..."}
+                className="font-mono text-xs bg-white/5 border-white/10"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (session?.user?.id) {
+                    navigator.clipboard.writeText(session.user.id);
+                    setTokenCopied(true);
+                    toast.success("Token copied to clipboard");
+                    setTimeout(() => setTokenCopied(false), 2000);
+                  }
+                }}
+              >
+                {tokenCopied ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                ) : (
+                  "Copy"
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-white/40">
+              Open the extension popup, paste this token in the connection field, and click Connect.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

@@ -1,0 +1,212 @@
+LinkedBoost - Complete Code Audit Report
+EXECUTIVE SUMMARY
+I analyzed every file across all core modules. The UI shell and API surface are well-crafted, but there are system-breaking integration gaps that prevent the automation from functioning end-to-end. Below is everything organized by priority.
+
+P0 - CRITICAL (System Non-Functional Without Fixes)
+1. WebSocket Protocol Mismatch - Extension Cannot Connect to Server
+Files: extension/background/service-worker.js:29, lib/websocket/server.ts:129
+
+The extension uses raw new WebSocket(wsUrl) but the server uses Socket.IO (which requires its own client library with HTTP handshake + packet framing). These are incompatible protocols. The extension literally cannot connect to the server. The entire real-time pipeline (job scraping, posting, scraping results) is non-functional.
+
+Fix: Either replace Socket.IO server with a raw WebSocket server (e.g., ws library), or add socket.io-client to the extension's service worker.
+
+2. No Orchestration Engine - Nothing Chains Actions Together
+The individual building blocks exist (content script commands, API endpoints, AI services) but nothing orchestrates them into automated workflows:
+
+No code translates JobSearch configs into LinkedIn URLs, navigates there, scrapes, scores, tailors resumes, fills forms, and submits
+No code executes scheduled posts at their scheduled time
+No code translates ScraperConfig records into extension commands
+Each step exists in isolation
+Fix: Build an orchestration service (either server-side with task queues or extension-side with state machines) that chains the individual commands into workflows.
+
+3. OAuth Users Get Wrong User ID (BUG-AUTH-3)
+File: auth.ts:60-73, auth.config.ts:63
+
+When Google/GitHub users sign in, token.id is set to the OAuth provider's user ID (e.g., Google's "117...") instead of the MongoDB _id. All subsequent API calls using session.user.id fail to match any MongoDB document. OAuth users can sign in but cannot use any feature.
+
+Fix: In the signIn callback, after creating/finding the user, look up the MongoDB user and set the token ID properly:
+
+4. Content Script Navigation Bug Destroys Execution Context
+File: extension/content/content-script.js:595-598
+
+createLinkedInPost sets window.location.href when not on /feed, which causes a full page reload that destroys the content script's execution context. The post is never created. Same issue would affect any command that navigates.
+
+Fix: Navigation should be handled by the service worker via chrome.tabs.update, then re-send the command after navigation completes.
+
+5. PDF Generator Completely Missing
+The plan calls for lib/services/pdf-generator.ts to generate tailored resume PDFs. This file does not exist. Without it, UPLOAD_RESUME has no server-generated PDF to upload, breaking the entire Easy Apply flow.
+
+6. Anti-Detection Engine Is Dead Code
+All files in lib/anti-detection/ contain sophisticated server-side code (Gaussian delays, session tracking, safety scores) that is never imported or used by the content script. The content script uses hardcoded flat delays (500ms, 1000ms, 2000ms, 3000ms). The entire anti-detection sophistication is unreachable.
+
+P1 - HIGH (Incorrect Results / Data Corruption)
+7. tailoredResume Field Name Mismatch
+Files: lib/services/job-analysis.ts:130-134 vs components/jobs/jobs-client.tsx:69-73
+
+Backend stores { summary, skills, highlights } but frontend reads { tailoredSummary, tailoredSkills, matchExplanation }. All tailored resume UI shows nothing.
+
+8. Stats API Field Name Mismatch
+job-analysis.ts returns averageMatchScore but frontend reads avgMatchScore → Always shows NaN%
+Applications API returns no total field but frontend reads data.total → Always shows 0
+9. MongoDB Aggregation userId Type Mismatch
+Files: app/api/scraper/route.ts:103-117, lib/services/job-analysis.ts:221
+
+Aggregation pipelines receive raw string session.user.id but userId is stored as ObjectId. Mongoose auto-casts in find() but NOT in aggregation $match. Stats always return empty/zero.
+
+Fix: { $match: { userId: new mongoose.Types.ObjectId(session.user.id) } }
+
+10. Gemini generateJSON Crashes on Safety-Blocked Content
+File: lib/ai/providers/gemini.ts:55
+
+When Gemini blocks content, generateText returns "", which flows into JSON.parse("") → crash. Also doesn't use Gemini's native responseMimeType: "application/json".
+
+11. Gemini API Key in URL Query String
+File: lib/ai/providers/gemini.ts:41
+
+API key passed as URL parameter (visible in logs, proxies, error tracking). OpenAI/Groq correctly use Authorization header.
+
+12. Rate Limiter Off-By-One
+File: lib/utils/rate-limit.ts:24-46
+
+Uses > instead of >=, allowing 6 requests when limit is 5. Also has a race condition between find and create operations.
+
+13. Hero Posting Days Buttons Non-Functional
+File: components/hero/hero-client.tsx:335-349
+
+Day-selection buttons have no onClick handler. The posting schedule days can never be changed by the user.
+
+14. Content Script Profile/Post/Company Scraping Missing
+The content script only has SCRAPE_JOB_LISTINGS and SCRAPE_JOB_DETAIL but ScraperConfig supports types posts, profiles, companies. There are no corresponding commands.
+
+15. saveApiKey Non-Atomic Race Condition
+File: lib/ai/key-manager.ts:35-47
+
+Two separate MongoDB operations ($pull + $push) can race, leaving zero or duplicate keys.
+
+16. OTP Brute-Force Vulnerability
+6-digit OTP (900K combinations) with only IP-based rate limiting. No per-user/per-email rate limiting. Distributed attack feasible.
+
+17. Password Reset Token Stored in Plaintext
+File: app/api/auth/forgot-password/route.ts
+
+Reset tokens stored unencrypted in MongoDB. Database breach = instant password reset for any user.
+
+18. WebSocket Auth Uses Raw userId as "Token"
+File: lib/websocket/server.ts:155
+
+Anyone who knows a MongoDB ObjectId can impersonate that user's extension connection.
+
+P2 - MEDIUM (Missing Features / Edge Cases / Performance)
+Missing Features
+#	Feature	Status
+19	No CRUD update (PATCH) for JobSearch, ScraperConfig	Only create + delete
+20	No job search schedule execution	schedule field saved but unused
+21	No user-configurable pre-answers for forms	Hardcoded defaults only
+22	No form answer learning from corrections	No Q&A feedback loop
+23	No Kanban view for applications	List view only
+24	No CSV export for applications or leads	Not implemented
+25	No frontend pagination (load more)	API supports cursors but UI ignores them
+26	No template variable substitution	{{name}} placeholders copied raw
+27	No outreach execution from scraper	Templates exist but can't be sent
+28	No Anthropic AI provider	Returns null from factory
+29	No AI model selection	Hardcoded per provider
+30	No AI streaming	Full response or nothing
+31	No AI call timeout	Hangs indefinitely on slow APIs
+32	No retry with backoff for AI 429 errors	Throws immediately
+33	No scheduled post executor	Posts sit in DB forever
+34	No group posting in content script	Only main feed
+35	No likes daily limit tracking	Unlimited likes
+36	No password change for logged-in users	Must use "forgot password"
+37	No session invalidation on password reset	Old JWTs remain valid
+38	No hero analytics page with charts	Aggregate stats only
+39	No lead deduplication	Same URL scraped = duplicate records
+40	No bulk operations on leads	One-at-a-time only
+41	No confirmation dialogs for deletes	Instant, irreversible
+Edge Cases
+#	Issue
+42	Checkbox fields (input[type='checkbox']) not detected by getFormFields
+43	LinkedIn custom dropdowns (Artdeco) not handled - only native <select>
+44	Radio button selection by exact value - no fuzzy matching, wrong group possible
+45	fillFormField uses positional index instead of CSS selector - DOM changes break it
+46	Multi-step form orchestration loop doesn't exist - no step detection/retry
+47	Extension only queries active LinkedIn tab - fails when user is on another tab
+48	isWithinWorkingHours uses server timezone, not user's configured timezone
+49	Daily limits reset at UTC midnight, not user's timezone (2x effective limits possible)
+50	shouldTakeBreak generates new random thresholds every call - non-deterministic
+51	aggressive speed preset exceeds safe LinkedIn limits (30 connections/day)
+52	Scheduling posts for past dates accepted with no validation
+Performance Issues
+#	Issue
+53	N+1 AI calls: getUserAIProvider + getDefaultResume fetched per job in processDiscoveredJobs loop
+54	scryptSync blocks Node.js event loop on every encrypt/decrypt
+55	No caching of decrypted AI provider instances
+56	getUserApiKeys decrypts ALL keys just to mask them (last 4 chars)
+57	Regex search on 5 unindexed data.* fields in scraper - full collection scan
+58	distinct("tags") full scan on every leads request
+59	$facet with 4 sub-pipelines scans data 4 times (should be single $group)
+60	countDocuments runs on every pagination request (only needed on first page)
+61	MutationObserver on document.body with subtree: true on LinkedIn - fires hundreds of times/second
+62	Monolithic client components: scraper-client.tsx (1662 lines), settings-client.tsx (1759 lines), analytics-client.tsx (1213 lines)
+63	No dynamic imports for charts (recharts), PDF renderer
+64	Full job descriptions returned in list API responses - wasted bandwidth
+65	4 parallel API calls on hero page mount = 4x auth/rate-limit overhead
+Security
+#	Issue
+66	sanitizeForAI blocklist trivially bypassed (Unicode homoglyphs, word splitting)
+67	Most prompt templates don't call sanitizeForAI at all
+68	OpenAI/Groq providers can leak API keys in error messages
+69	No validation on hero groups, engagement, queue API data
+70	No ObjectId validation before MongoDB queries - CastErrors become 500s
+71	Email enumeration via different error messages in verify/resend endpoints
+72	Extension auth token stored unencrypted in chrome.storage.local
+73	No input length limit on $regex search parameter
+P3 - LOW (Code Quality / Minor)
+#	Issue
+74	document.execCommand("insertText") is deprecated - may be removed from browsers
+75	extension/utils/helpers.js exports are never imported (dead code)
+76	Unused now variable in scraper-client.tsx:528
+77	Template ID fallback template._id || template.id fragile
+78	Clipboard API not wrapped in try-catch
+79	deleteSearch/deletePost don't check response before showing success toast
+80	JWT "rotation" at 24h just updates iat - no actual security benefit
+81	SessionTracker class never instantiated anywhere
+82	applyActionDelay, simulateJobReading, simulateProfileReview never called
+83	contentQueue on HeroProfile duplicates Post collection
+84	No error boundaries on any page - component crash = blank page
+85	No fetchProfile/fetchPosts error handling - network failure = permanent loading state
+86	Permanent loading state when hero page initial fetch fails (no catch block)
+RECOMMENDED FIX ORDER
+Phase 1 - Make it work (P0)
+
+Fix WebSocket protocol mismatch (raw WS vs Socket.IO)
+Fix OAuth user ID mapping
+Fix content script navigation bug
+Build orchestration engine for job apply, posting, scraping
+Create PDF generator service
+Wire anti-detection delays into content script
+Phase 2 - Make it correct (P1)
+7. Fix all field name mismatches (tailoredResume, stats, aggregation ObjectId)
+8. Fix Gemini generateJSON (use native JSON mode, handle blocked content)
+9. Fix rate limiter off-by-one and race condition
+10. Hash password reset tokens
+11. Fix hero posting days buttons
+12. Add content script commands for profile/post/company scraping
+13. Secure WebSocket authentication with proper JWT verification
+
+Phase 3 - Make it robust (P2)
+14. Add PATCH endpoints for config editing
+15. Add frontend pagination / infinite scroll
+16. Implement scheduled post executor (cron/alarm-based)
+17. Fix timezone handling in anti-detection
+18. Add missing daily limit categories (likes)
+19. Add confirmation dialogs for destructive actions
+20. Break monolithic components into smaller ones
+21. Add dynamic imports for heavy components
+
+Phase 4 - Make it shine (P3)
+22. Add error boundaries
+23. Clean up dead code
+24. Add Kanban view, CSV export
+25. Implement AI streaming
+26. Add template variable substitution
+27. Build outreach execution flow

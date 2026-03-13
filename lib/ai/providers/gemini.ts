@@ -38,7 +38,7 @@ export class GeminiProvider implements AIProvider {
     }
 
     const res = await fetch(
-      `${this.baseUrl}/models/gemini-2.0-flash:generateContent?key=${this.apiKey}`,
+      `${this.baseUrl}/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -56,16 +56,54 @@ export class GeminiProvider implements AIProvider {
   }
 
   async generateJSON<T>(messages: AIMessage[], options?: AIGenerateOptions): Promise<T> {
-    const jsonMessages: AIMessage[] = [
-      ...messages.slice(0, -1),
-      {
-        ...messages[messages.length - 1],
-        content: messages[messages.length - 1].content + "\n\nRespond with valid JSON only. No markdown, no code fences.",
+    // Use Gemini's native JSON mode — guarantees valid JSON output, no retries needed
+    const contents = messages
+      .filter((m) => m.role !== "system")
+      .map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
+
+    const systemInstruction = messages.find((m) => m.role === "system");
+
+    const body: Record<string, unknown> = {
+      contents,
+      generationConfig: {
+        temperature: options?.temperature ?? 0.7,
+        maxOutputTokens: options?.maxTokens ?? 8192,
+        topP: options?.topP ?? 0.95,
+        responseMimeType: "application/json",
       },
-    ];
-    const text = await this.generateText(jsonMessages, options);
-    const cleaned = text.replace(/```json\n?|```\n?/g, "").trim();
-    return JSON.parse(cleaned) as T;
+    };
+
+    if (systemInstruction) {
+      body.systemInstruction = { parts: [{ text: systemInstruction.content }] };
+    }
+
+    const res = await fetch(
+      `${this.baseUrl}/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(this.sanitizeError(`Gemini API error: ${res.status} — ${err}`));
+    }
+
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+    try {
+      return JSON.parse(text) as T;
+    } catch (err) {
+      throw new Error(
+        `Gemini JSON parse error: ${(err as Error).message}\nResponse preview: ${text.substring(0, 300)}`
+      );
+    }
   }
 
   async validateKey(): Promise<boolean> {

@@ -35,12 +35,27 @@ function getStoredToken() {
 function renderLoginPrompt() {
   app.innerHTML = `
     <div class="login-prompt">
-      <p>Sign in to your LinkedBoost account to get started</p>
-      <button class="btn btn-primary" id="open-dashboard">
-        Open Dashboard
+      <p>Connect to your LinkedBoost account</p>
+      <div style="margin-bottom: 12px;">
+        <input type="text" id="token-input" placeholder="Paste connection token here"
+          style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #F8FAFC; font-size: 12px; font-family: monospace; outline: none;" />
+      </div>
+      <button class="btn btn-primary" id="connect-token">
+        Connect
+      </button>
+      <button class="btn btn-outline" id="open-dashboard">
+        Get Token from Dashboard
       </button>
     </div>
   `;
+
+  document.getElementById("connect-token").addEventListener("click", () => {
+    const token = document.getElementById("token-input").value.trim();
+    if (!token) return;
+    chrome.runtime.sendMessage({ type: "SET_AUTH_TOKEN", token }, () => {
+      setTimeout(init, 500);
+    });
+  });
 
   document.getElementById("open-dashboard").addEventListener("click", () => {
     chrome.tabs.create({ url: `${DASHBOARD_URL}/settings` });
@@ -80,6 +95,10 @@ function renderDashboard(status) {
         Reconnect
       </button>
     ` : ""}
+
+    <button class="btn btn-outline" id="disconnect" style="color: rgba(239,68,68,0.7);">
+      Disconnect
+    </button>
   `;
 
   document.getElementById("open-dashboard").addEventListener("click", () => {
@@ -93,6 +112,12 @@ function renderDashboard(status) {
       setTimeout(init, 1000);
     });
   }
+
+  document.getElementById("disconnect").addEventListener("click", () => {
+    chrome.storage.local.remove("authToken");
+    chrome.runtime.sendMessage({ type: "SET_AUTH_TOKEN", token: null });
+    init();
+  });
 }
 
 // Listen for status changes from background
